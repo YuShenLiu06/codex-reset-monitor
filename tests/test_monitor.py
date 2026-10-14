@@ -448,6 +448,17 @@ class MonitorTest(unittest.TestCase):
         self.assertEqual(self.run_data(fixture(0.1),send=True)["status"], "blocked_unresolved_delivery")
         self.assertEqual(self.calls,[])
 
+    def test_cli_remote_state_error_has_documented_code_without_traceback(self):
+        import subprocess
+        environment = dict(os.environ)
+        environment.pop("GH_TOKEN", None)
+        completed = subprocess.run([sys.executable, str(Path(m.__file__)),
+            "--github-state", "--once", "--dry-run"], env=environment,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+        self.assertEqual(completed.returncode, 4)
+        self.assertEqual(json.loads(completed.stderr)["status"], "error")
+        self.assertNotIn(b"Traceback", completed.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

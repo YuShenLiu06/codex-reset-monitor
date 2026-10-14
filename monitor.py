@@ -559,6 +559,8 @@ def main(argv=None) -> int:
 
 
 if __name__ == "__main__":
+    # Keep exception classes identical when github_state imports this CLI module.
+    sys.modules.setdefault("monitor", sys.modules[__name__])
     try:
         sys.exit(main())
     except KeyboardInterrupt:
