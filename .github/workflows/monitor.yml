@@ -1,0 +1,81 @@
+name: Hourly monitor
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Preview only (never sends or changes state)'
+        type: boolean
+        default: true
+        required: true
+permissions:
+  contents: read
+# Same group for manual and scheduled sends; do not cancel a pending delivery.
+concurrency:
+  group: codex-reset-monitor
+  cancel-in-progress: false
+jobs:
+  preview:
+    if: github.event_name == 'workflow_dispatch' && inputs.dry_run
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Offline tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Live safe preview (no Feishu secrets, read-only remote ledger)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 monitor.py --once --dry-run --github-state
+  notify:
+    if: >-
+      github.repository == 'YuShenLiu06/codex-reset-monitor' &&
+      github.ref == 'refs/heads/main' &&
+      vars.MONITOR_ENABLED == 'true' &&
+      (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check required secrets without printing their values
+        env:
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          FEISHU_SIGNING_SECRET: ${{ secrets.FEISHU_SIGNING_SECRET }}
+        run: |
+          python3 - <<'PY'
+          import dataclasses
+          import monitor
+          try:
+              monitor.validate_sender_config(dataclasses.replace(monitor.Config(), sending_enabled=True))
+          except monitor.MonitorError:
+              raise SystemExit('Missing or invalid required secrets; no notification attempted')
+          PY
+      - name: Evaluate and reserve remote state before delivery
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          FEISHU_SIGNING_SECRET: ${{ secrets.FEISHU_SIGNING_SECRET }}
+        run: |
+          python3 - <<'PY'
+          import dataclasses
+          import json
+          import monitor
+          from github_state import GitHubStateStore
+          try:
+              result = monitor.run_once(
+                  dataclasses.replace(monitor.Config(), sending_enabled=True),
+                  send=True, store=GitHubStateStore())
+              print(json.dumps(result, ensure_ascii=False, allow_nan=False))
+              if result['status'] == 'blocked_unresolved_delivery':
+                  raise SystemExit(3)
+          except monitor.MonitorError as exc:
+              print(json.dumps({'status':'error', 'error':str(exc)}))
+              raise SystemExit(4 if isinstance(exc, monitor.StateError) else 3 if isinstance(exc, monitor.SendUnknown) else 2)
+          PY

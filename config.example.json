@@ -1,0 +1,9 @@
+{
+  "threshold": 0.8,
+  "max_age_seconds": 7200,
+  "cooldown_seconds": 86400,
+  "state_path": "runtime/state.json",
+  "sending_enabled": false,
+  "official_signals_enabled": false,
+  "official_signals_path": null
+}

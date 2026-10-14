@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+runtime/
+config.json
+config.local.json
+*.local.json
+*.log
+.env
+.env.*
+credentials/
+secrets/
+lark-home/
+.lark/
+.lark-cli/
+.config/
+*.pem
+*.key
