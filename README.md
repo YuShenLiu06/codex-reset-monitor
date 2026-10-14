@@ -8,7 +8,7 @@
 
 ## 免 clone 安装入口（等待真实 App 配置与用户验收）
 
-本地已实现 Release `.pyz` 与 Skill 共用的安装核心，默认只显示离线计划。**尚未发布 Release 或注册真实安装器 GitHub App**，因此现在不能宣称扫码即可完成真实部署。设计与剩余官方用户步骤见[安装器审查稿](docs/installer-review.md)，本人测试用[简短验收清单](docs/user-acceptance.md)。安装器默认扫码新建飞书应用，可显式用公开 App ID 扫码复用；安全预览后由用户确认一次独立安装测试、收到对应标识并明确开启，默认仍关闭。
+本地已实现 Release `.pyz` 与 Skill 共用的安装核心，默认在交互终端询问开始并逐步引导，`--plan` 才是离线预览。**尚未发布 Release 或注册真实安装器 GitHub App**，因此现在不能宣称扫码即可完成真实部署。设计与剩余官方用户步骤见[安装器审查稿](docs/installer-review.md)，本人测试用[简短验收清单](docs/user-acceptance.md)。安装器默认扫码新建飞书应用，可显式用公开 App ID 扫码复用；安全预览后由用户确认一次独立安装测试、收到对应标识并明确开启，默认仍关闭。
 
 新增应用机器人后端仅向应用授权本人 `open_id` 通知，保留下面的群 Webhook 兼容方式与原去重记录。选择 `FEISHU_NOTIFY_BACKEND=app` 后，必须有 `FEISHU_APP_ID`、`FEISHU_APP_SECRET`、`FEISHU_SELF_OPEN_ID` 和绑定身份的 `FEISHU_APP_READINESS`。后者记录用户对权限、发布与本人范围的核验，不能当作程序已验证真实送达。未指定后端则继续使用 Webhook，未知后端安全停止。发送未知时两个后端均保守阻塞重试。
 
@@ -124,3 +124,5 @@ python3 /ABSOLUTE/codex-reset-monitor/monitor.py \
 - [GitHub schedule 官方限制](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)：默认分支、延迟/漏跑、60 天无活动停用。
 - [GitHub Contents 条件更新 API](https://docs.github.com/en/rest/repos/contents#create-or-update-file-contents)和[临时 GITHUB_TOKEN 权限](https://docs.github.com/en/actions/tutorials/authenticate-with-github_token)。
 - [来源 API 项目](https://github.com/gussuri/codex-reset-observatory)及[模型治理说明](https://github.com/gussuri/codex-reset-observatory/blob/main/docs/probability/published-model-governance.md)。本项目消费公开 DTO，不复制模型或采集器。
+
+首次本机启动：`python3 runtime/release-build/codex-reset-install.pyz`。确认开始后，缺公开 App 配置时打开 GitHub 官方预填注册页；本人勾选 Device Flow、保留 token 过期并创建，只在本地输入公开 Client ID 和 App URL/slug。非交互默认预览不等待输入，`--plan` 始终无副作用，`--run` 兼容原入口。取消后重启同一命令；已创建但尚未填配置时选 existing，勿重复创建。

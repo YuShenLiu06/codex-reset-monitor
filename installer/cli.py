@@ -13,6 +13,7 @@ from installer.github_api import GitHubAPI
 from feishu_app import (AppCredentials, begin_registration, poll_registration,
                         readiness_record, tenant_token, validate_credentials)
 from monitor import MonitorError
+from installer.registration import configure as configure_public
 
 
 def require(prompt,word):
@@ -55,7 +56,9 @@ def collect_feishu(progress,emit):
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--retry-failed-stage',choices=('prepare','preview'),help='Explicit user-confirmed safe revalidation after fixing a failed workflow')
-    parser.add_argument('--run',action='store_true',help='User-only live interactive flow; default is offline plan')
+    parser.add_argument('--run',action='store_true',help='User-only interactive installation')
+    parser.add_argument('--plan',action='store_true',help='Side-effect-free offline preview')
+    parser.add_argument('--public-config',type=Path,default=Path('.codex-reset-setup/app.local.json'))
     parser.add_argument('--client-id',help='Public client_id of a real device-enabled GitHub App; no fake default')
     parser.add_argument('--app-slug',help='Public slug of that installer GitHub App')
     parser.add_argument('--target',help='OWNER/REPO; prompted if omitted')
@@ -67,14 +70,17 @@ def main(argv=None):
     emit('plan','官方网页 fork → 仅目标仓库安装 GitHub App → device 授权 → 核验兼容性 → 飞书本人授权 → 最终配置确认 → prepare → 安全 dry-run。')
     emit('plan','安装器权限：Contents:read、Metadata:read、Secrets/Actions/Variables:write；不自动 fork、不覆盖源码、不申请 Administration/Contents:write。')
     emit('plan','默认禁用；用户可在安全预览后确认一次测试通知，确认收到再明确启用。真实安装器 App 尚需维护者注册。')
-    if not args.run:return 0
+    interactive=sys.stdin.isatty() and sys.stdout.isatty()
+    if args.plan or (not args.run and not interactive):return 0
     api=None;values=None;token=None
     try:
         if sys.platform not in ('darwin','linux'):raise SetupError('PLATFORM_UNSUPPORTED','live installer currently supports macOS/Linux only')
         if not sys.stdin.isatty() or not sys.stdout.isatty():raise SetupError('INTERACTIVE_USER_TERMINAL_REQUIRED')
-        if not args.client_id or not args.app_slug or not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,99}',args.app_slug):
-            raise SetupError('REAL_INSTALLER_APP_REQUIRED','explicit public client_id and app slug needed')
+        if not args.run and input('开始逐步安装？[Y/n]：').strip().lower() not in ('','y','yes'):
+            emit('stopped','已取消，未开始配置。');return 0
         if not shutil.which('gh'):raise SetupError('GH_CLI_REQUIRED','install the official GitHub CLI first; no authorization started')
+        public=configure_public(args.public_config,emit,args.client_id,args.app_slug)
+        args.client_id,args.app_slug=public['client_id'],public['app_slug']
         target=args.target or input('目标仓库 OWNER/REPO：').strip()
         progress=Progress(args.progress,target)
         policy=input('目标仓库策略：复用已有 [默认 reuse] / 官方页面新建 fork：').strip() or 'reuse'
@@ -130,8 +136,9 @@ def main(argv=None):
     finally:
         if values is not None:values.clear()
         if api is not None:api.close()
+        authorized=token is not None or api is not None
         token=None
-        emit('cleanup','已释放本地短期凭据引用，不保存 refresh token。请在 https://github.com/settings/installations 撤销安装工具安装，并在 https://github.com/settings/apps/authorizations 撤销用户授权。')
+        if authorized:emit('cleanup','已释放本地短期凭据引用，不保存 refresh token。请在 https://github.com/settings/installations 撤销安装工具安装，并在 https://github.com/settings/apps/authorizations 撤销用户授权。')
 
 
 if __name__=='__main__':raise SystemExit(main())

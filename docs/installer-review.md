@@ -4,10 +4,10 @@
 
 ## 用户入口
 
-维护者审查代码并将对应版本合入主仓库后，构建 Release 的 `codex-reset-install.pyz`、`codex-reset-install-skill.zip` 和 `SHA256SUMS`。不要求用户 clone。live 安装器目前支持 macOS/Linux；用户需有 Python 3.10+ 和来自官方来源的 GitHub CLI（用于本地加密 Secrets）。默认运行包只显示离线计划：
+维护者审查代码并将对应版本合入主仓库后，构建 Release 的 `codex-reset-install.pyz`、`codex-reset-install-skill.zip` 和 `SHA256SUMS`。不要求用户 clone。live 安装器目前支持 macOS/Linux；用户需有 Python 3.10+ 和来自官方来源的 GitHub CLI（用于本地加密 Secrets）。默认在交互终端询问开始并引导首次公开配置；非交互默认退出为预览。无副作用预览使用 --plan：
 
 ```bash
-python3 codex-reset-install.pyz
+python3 codex-reset-install.pyz --plan
 ```
 
 未来已注册真实 GitHub App 后，用户在本机交互终端运行：
@@ -17,7 +17,7 @@ python3 codex-reset-install.pyz --run \
   --client-id PUBLIC_CLIENT_ID --app-slug PUBLIC_APP_SLUG
 ```
 
-公开 client_id 与 slug 可以由维护者发布在安装说明中，无需用户搬运私钥或 client_secret。Skill 包内的 launcher 调用同一个 `.pyz`；代理只可运行默认离线计划，真实授权和最终敏感配置确认由用户在自己的终端完成，不将凭据或完整终端记录贴入聊天。
+公开 client_id 与 slug 可以由维护者发布在安装说明中，无需用户搬运私钥或 client_secret。Skill 包内的 launcher 调用同一个 `.pyz`；代理只可运行默认离线计划，默认交互入口会引导本人在官方预填页面创建 GitHub App，只保存公开 Client ID/slug；真实授权和最终敏感配置确认由用户在自己的终端完成，不将凭据或完整终端记录贴入聊天。
 
 ## 授权、复用与验证
 

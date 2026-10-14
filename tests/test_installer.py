@@ -208,7 +208,7 @@ class InstallerTest(unittest.TestCase):
             if '明确开启此仓库' in prompt:return 'ENABLE '+TARGET
             return TARGET
         with contextlib.redirect_stdout(stream),patch.object(sys.stdin,'isatty',return_value=True),patch.object(sys.stdout,'isatty',return_value=True),             patch.object(cli,'device_authorize',return_value=self.api.token),patch.object(cli,'GitHubAPI',return_value=self.api),             patch.object(cli,'manifest',return_value=self.api.manifest),patch.object(cli,'collect_feishu',return_value=self.values),             patch.object(c,'upload_secrets'),patch('builtins.input',side_effect=user_answer):
-            code=cli.main(['--run','--client-id','unit-public-id','--app-slug','unit-installer','--target',TARGET,'--progress',str(self.path)])
+            code=cli.main(['--run','--client-id','Iv1.UnitPublicID','--app-slug','unit-installer','--target',TARGET,'--progress',str(self.path)])
         self.assertEqual(code,0)
         self.assertEqual(self.api.variables['MONITOR_ENABLED'],'true')
         self.assertEqual(len(self.api.runs),3)
@@ -264,7 +264,7 @@ class InstallerTest(unittest.TestCase):
             if 'device/code' in url:return {'device_code':'x'*40,'user_code':'ABCD-EFGH','expires_in':6,'interval':5}
             clock.now=7
             return {'access_token':'ghu_'+'x'*16,'token_type':'bearer','expires_in':28800}
-        with self.assertRaises(SetupError) as caught:c.device_authorize('unit-public-id',self.emit,request=request,clock=clock.clock,sleep=clock.sleep)
+        with self.assertRaises(SetupError) as caught:c.device_authorize('Iv1.UnitPublicID',self.emit,request=request,clock=clock.clock,sleep=clock.sleep)
         self.assertEqual(caught.exception.code,'DEVICE_TIMED_OUT')
 
     def test_progress_corruption_target_mismatch_and_credentials_schema_rejected(self):
@@ -295,7 +295,7 @@ class InstallerTest(unittest.TestCase):
              patch.object(cli,'device_authorize',return_value=self.api.token),patch.object(cli,'GitHubAPI',return_value=self.api),\
              patch.object(cli,'manifest',return_value=self.api.manifest),patch.object(cli,'collect_feishu',return_value=self.values),\
              patch.object(c,'upload_secrets') as upload,patch('builtins.input',side_effect=['reuse',TARGET,'ExampleUser',TARGET,'']):
-            code=cli.main(['--run','--client-id','unit-public-id','--app-slug','unit-installer','--target',TARGET,'--progress',str(self.path)])
+            code=cli.main(['--run','--client-id','Iv1.UnitPublicID','--app-slug','unit-installer','--target',TARGET,'--progress',str(self.path)])
         self.assertEqual(code,0);upload.assert_called_once()
         self.assertIsNone(self.api.token)
         self.assertEqual(self.values,{})
@@ -316,7 +316,7 @@ class InstallerTest(unittest.TestCase):
     def test_github_device_flow_minimum_interval_and_expiring_token_no_client_secret(self):
         clock=FakeClock();request=Mock(side_effect=[{'device_code':'x'*40,'user_code':'ABCD-EFGH','expires_in':900,'interval':5},
             {'error':'authorization_pending'},{'error':'slow_down'},{'access_token':'ghu_'+'x'*16,'token_type':'bearer','expires_in':28800,'refresh_token':'synthetic-refresh'}])
-        token=c.device_authorize('unit-public-id',self.emit,request=request,clock=clock.clock,sleep=clock.sleep)
+        token=c.device_authorize('Iv1.UnitPublicID',self.emit,request=request,clock=clock.clock,sleep=clock.sleep)
         self.assertEqual(token,'ghu_'+'x'*16);self.assertEqual(clock.waits,[5,5,10])
         payloads=[call.args[1] for call in request.call_args_list]
         self.assertNotIn('client_secret',json.dumps(payloads));self.assertNotIn('repo',payloads[0].get('scope',''))
@@ -328,12 +328,12 @@ class InstallerTest(unittest.TestCase):
             {'access_token':'ghp_'+'x'*16,'token_type':'bearer','expires_in':28800}):
             clock=FakeClock();request=Mock(side_effect=[{'device_code':'x'*40,'user_code':'ABCD-EFGH','expires_in':900,'interval':5},response])
             with self.subTest(response=response),self.assertRaises(SetupError) as caught:
-                c.device_authorize('unit-public-id',self.emit,request=request,clock=clock.clock,sleep=clock.sleep)
+                c.device_authorize('Iv1.UnitPublicID',self.emit,request=request,clock=clock.clock,sleep=clock.sleep)
             self.assertNotIn('sensitive',str(caught.exception))
 
     def test_device_timeout_does_not_start_second_flow(self):
         clock=FakeClock();request=Mock(return_value={'device_code':'x'*40,'user_code':'ABCD-EFGH','expires_in':5,'interval':5})
-        with self.assertRaises(SetupError):c.device_authorize('unit-public-id',self.emit,request=request,clock=clock.clock,sleep=clock.sleep)
+        with self.assertRaises(SetupError):c.device_authorize('Iv1.UnitPublicID',self.emit,request=request,clock=clock.clock,sleep=clock.sleep)
         self.assertEqual(request.call_count,1)
 
     def test_prepare_preserves_existing_state_and_fails_corrupt_or_deleted(self):

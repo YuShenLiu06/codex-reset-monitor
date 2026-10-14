@@ -13,7 +13,7 @@ from installer.core import TRUSTED_FILES, expected_manifest
 
 ROOT=Path(__file__).resolve().parents[1]
 BUNDLE_FILES=('acceptance.py','monitor.py','github_state.py','feishu_app.py','bootstrap_state.py','project.json',
-              'installer/__init__.py','installer/core.py','installer/github_api.py','installer/cli.py')
+              'installer/registration.py','installer/__init__.py','installer/core.py','installer/github_api.py','installer/cli.py')
 
 
 def build(output):

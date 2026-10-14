@@ -22,3 +22,5 @@ GitHub 官方 manifest flow 可以向 `https://github.com/settings/apps/new` POS
 当前官方 manifest 参数表未提供 Enable Device Flow 字段，因此即使未来实现安全的 manifest 回调，维护者仍需在真实 App 设置页面启用 device flow，并保持用户 token 过期。无需为本地 device 安装器引入共享 client_secret。
 
 官方依据：[注册 GitHub App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app)、[manifest flow 与参数表](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-from-a-manifest)、[device flow](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app#using-the-device-flow-to-generate-a-user-access-token)。（字段与权限应在提交前再次核对官方页面。）
+
+安装器现在提供首次交互引导并打开[官方支持的 URL 预填注册页](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-using-url-parameters)，权限使用 contents=read、actions=write、secrets=write、variables=write。Device Flow 与 token 过期仍需本人核对。只保存公开 Client ID/slug，无 manifest code 交换、私钥或 client secret 采集。
