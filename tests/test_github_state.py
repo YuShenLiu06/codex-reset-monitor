@@ -46,7 +46,7 @@ class Remote:
 
 class GitHubStateTest(unittest.TestCase):
     def setUp(self):
-        self.env=patch.dict(os.environ,{'GH_TOKEN':'synthetic'+'-token',
+        self.env=patch.dict(os.environ,{'GITHUB_REPOSITORY':g.REPOSITORY,'GH_TOKEN':'synthetic'+'-token',
             'FEISHU_WEBHOOK_URL':'https://open.feishu.cn/open-apis/bot/v2/hook/'+'x'*24,
             'FEISHU_SIGNING_SECRET':'unit'+'-test'})
         self.env.start()
@@ -169,6 +169,13 @@ class GitHubStateTest(unittest.TestCase):
         opener=Mock(); opener.open.return_value=response
         store=g.GitHubStateStore()
         with patch.object(g.urllib.request,'build_opener',return_value=opener),self.assertRaises(m.StateError): store.read()
+
+    def test_fork_state_uses_own_repository_and_invalid_targets_stop(self):
+        with patch.dict(os.environ,{'GITHUB_REPOSITORY':'ExampleUser/codex-reset-monitor'}):
+            store=g.GitHubStateStore()
+            self.assertEqual(store.url,'https://api.github.com/repos/ExampleUser/codex-reset-monitor/contents/state.json')
+        with patch.dict(os.environ,{'GITHUB_REPOSITORY':'invalid/../../other'}),self.assertRaises(m.StateError):
+            g.GitHubStateStore()
 
 
 if __name__=='__main__': unittest.main()

@@ -6,6 +6,12 @@
 
 该站估计未充分前瞻校准，不是 OpenAI 官方保证。目标包含广范围提前重置和备用重置额度（banked reset）发放；拿到备用卡不等于个人额度自动恢复。提醒会带上这些限制。来源健康状态也不能证明所有历史信号采集完整。
 
+## 免 clone 安装入口（等待真实 App 配置与用户验收）
+
+本地已实现 Release `.pyz` 与 Skill 共用的安装核心，默认只显示离线计划。**尚未发布 Release 或注册真实安装器 GitHub App**，因此现在不能宣称扫码即可完成真实部署。设计与剩余官方用户步骤见[安装器审查稿](docs/installer-review.md)，本人测试用[简短验收清单](docs/user-acceptance.md)。
+
+新增应用机器人后端仅向应用授权本人 `open_id` 通知，保留下面的群 Webhook 兼容方式与原去重记录。选择 `FEISHU_NOTIFY_BACKEND=app` 后，必须有 `FEISHU_APP_ID`、`FEISHU_APP_SECRET`、`FEISHU_SELF_OPEN_ID` 和绑定身份的 `FEISHU_APP_READINESS`。后者记录用户对权限、发布与本人范围的核验，不能当作程序已验证真实送达。未指定后端则继续使用 Webhook，未知后端安全停止。发送未知时两个后端均保守阻塞重试。
+
 ## 首次部署：GitHub Actions
 
 这是按时启动、运行后退出的脚本任务，不是常驻云电脑。适合容忍延迟的轻量提醒；无需购买服务器或开通付费服务。

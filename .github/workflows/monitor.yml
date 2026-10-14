@@ -1,9 +1,15 @@
 name: Hourly monitor
+run-name: ${{ inputs.installation_id && format('install-{0}', inputs.installation_id) || 'Hourly monitor' }}
 on:
   schedule:
     - cron: '17 * * * *'
   workflow_dispatch:
     inputs:
+      installation_id:
+        type: string
+        required: false
+        default: ''
+        description: 'Non-secret setup run correlation ID'
       dry_run:
         description: 'Preview only (never sends or changes state)'
         type: boolean
@@ -32,7 +38,6 @@ jobs:
         run: python3 monitor.py --once --dry-run --github-state
   notify:
     if: >-
-      github.repository == 'YuShenLiu06/codex-reset-monitor' &&
       github.ref == 'refs/heads/main' &&
       vars.MONITOR_ENABLED == 'true' &&
       (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run))
@@ -48,10 +53,18 @@ jobs:
         env:
           FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
           FEISHU_SIGNING_SECRET: ${{ secrets.FEISHU_SIGNING_SECRET }}
+          FEISHU_NOTIFY_BACKEND: ${{ secrets.FEISHU_NOTIFY_BACKEND }}
+          FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+          FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+          FEISHU_SELF_OPEN_ID: ${{ secrets.FEISHU_SELF_OPEN_ID }}
+          FEISHU_APP_READINESS: ${{ secrets.FEISHU_APP_READINESS }}
         run: |
           python3 - <<'PY'
           import dataclasses
           import monitor
+          import os
+          if not os.environ.get("FEISHU_NOTIFY_BACKEND"):
+              os.environ.pop("FEISHU_NOTIFY_BACKEND", None)
           try:
               monitor.validate_sender_config(dataclasses.replace(monitor.Config(), sending_enabled=True))
           except monitor.MonitorError:
@@ -62,12 +75,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
           FEISHU_SIGNING_SECRET: ${{ secrets.FEISHU_SIGNING_SECRET }}
+          FEISHU_NOTIFY_BACKEND: ${{ secrets.FEISHU_NOTIFY_BACKEND }}
+          FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+          FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+          FEISHU_SELF_OPEN_ID: ${{ secrets.FEISHU_SELF_OPEN_ID }}
+          FEISHU_APP_READINESS: ${{ secrets.FEISHU_APP_READINESS }}
         run: |
           python3 - <<'PY'
           import dataclasses
           import json
           import monitor
           from github_state import GitHubStateStore
+          import os
+          if not os.environ.get("FEISHU_NOTIFY_BACKEND"):
+              os.environ.pop("FEISHU_NOTIFY_BACKEND", None)
           try:
               result = monitor.run_once(
                   dataclasses.replace(monitor.Config(), sending_enabled=True),

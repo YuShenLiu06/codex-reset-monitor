@@ -1,0 +1,39 @@
+name: Prepare monitor state
+run-name: ${{ inputs.installation_id && format('install-{0}', inputs.installation_id) || 'Prepare monitor state' }}
+on:
+  workflow_dispatch:
+    inputs:
+      installation_id:
+        type: string
+        required: false
+        default: ''
+        description: 'Non-secret setup run correlation ID'
+      confirm_first_setup:
+        type: boolean
+        required: true
+        default: false
+        description: 'Initialize only if no previous state exists; never sends messages'
+permissions:
+  contents: read
+concurrency:
+  group: codex-reset-monitor
+  cancel-in-progress: false
+jobs:
+  prepare:
+    if: inputs.confirm_first_setup && vars.MONITOR_ENABLED != 'true' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Offline tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Preserve or initialize non-secret ledger (no Feishu credentials)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MONITOR_ENABLED: ${{ vars.MONITOR_ENABLED }}
+          MONITOR_INITIALIZED: ${{ vars.MONITOR_INITIALIZED }}
+        run: python3 bootstrap_state.py

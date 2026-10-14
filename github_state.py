@@ -19,13 +19,16 @@ BRANCH = "monitor-state"
 
 
 class GitHubStateStore(StateStore):
-    def __init__(self):
+    def __init__(self, repository=None):
         # Intentionally do not create local state or initialize a missing branch.
         self.sha = None
         self.token = os.environ.get("GH_TOKEN", "")
         if not self.token:
             raise StateError("GitHub state requires GH_TOKEN")
-        self.url = f"https://api.github.com/repos/{REPOSITORY}/contents/state.json"
+        self.repository = repository or os.environ.get("GITHUB_REPOSITORY", REPOSITORY)
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]{1,100}", self.repository):
+            raise StateError("Invalid GitHub state repository")
+        self.url = f"https://api.github.com/repos/{self.repository}/contents/state.json"
 
     @contextlib.contextmanager
     def locked(self):

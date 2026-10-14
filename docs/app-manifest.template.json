@@ -1,0 +1,17 @@
+{
+  "name": "Codex Reset Installer",
+  "url": "https://github.com/YuShenLiu06/codex-reset-monitor",
+  "description": "Local setup of Codex reset alerts for one explicitly selected repository.",
+  "public": true,
+  "hook_attributes": {"active": false},
+  "default_permissions": {
+    "contents": "read",
+    "metadata": "read",
+    "actions": "write",
+    "secrets": "write",
+    "variables": "write"
+  },
+  "default_events": [],
+  "request_oauth_on_install": false,
+  "setup_on_update": false
+}

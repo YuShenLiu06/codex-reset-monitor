@@ -15,3 +15,5 @@ lark-home/
 .config/
 *.pem
 *.key
+
+.codex-reset-setup/

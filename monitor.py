@@ -11,7 +11,6 @@ import hmac
 import contextlib
 import dataclasses
 from datetime import datetime, timedelta, timezone
-import fcntl
 import hashlib
 import json
 import math
@@ -323,7 +322,7 @@ def empty_state() -> dict:
 
 def validate_state(state: dict) -> dict:
     state = object_at(state, "state")
-    if state.get("version") != 1 or not {"version", "alerts", "last_sent_at"} <= state.keys():
+    if type(state.get("version")) is not int or state.get("version") != 1 or not {"version", "alerts", "last_sent_at"} <= state.keys():
         raise StateError("Unknown state schema; refusing to reset")
     alerts = object_at(state.get("alerts"), "state.alerts")
     for key, entry in alerts.items():
@@ -344,6 +343,10 @@ class StateStore:
 
     @contextlib.contextmanager
     def locked(self):
+        try:
+            import fcntl
+        except ImportError:
+            raise StateError("Local file locking requires macOS/Linux; use the remote Actions backend") from None
         self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         fd = os.open(str(self.path) + ".lock", os.O_RDWR | os.O_CREAT, 0o600)
         try:
@@ -390,10 +393,21 @@ class StateStore:
                     os.unlink(temporary)
 
 
+def notification_backend() -> str:
+    backend = os.environ.get("FEISHU_NOTIFY_BACKEND", "webhook")
+    if backend not in {"webhook", "app"}:
+        raise MonitorError("Unknown notification backend")
+    return backend
+
+
 def validate_sender_config(config: Config) -> str:
     """Credentials come only from environment; never include values in errors."""
     if not config.sending_enabled:
         raise MonitorError("Sending disabled in config")
+    if notification_backend() == "app":
+        from feishu_app import environment_credentials
+        environment_credentials()
+        return "app"
     url = os.environ.get("FEISHU_WEBHOOK_URL", "")
     # Exact Feishu host/path; no userinfo, ports, query, fragments or redirects.
     if not re.fullmatch(r"https://open\.feishu\.cn/open-apis/bot/v2/hook/[a-zA-Z0-9_-]{16,128}", url):
@@ -412,6 +426,8 @@ def webhook_signature(timestamp: str, secret: str) -> str:
 
 
 def webhook_sender(config: Config, alert: Alert) -> str:
+    if notification_backend() != "webhook":
+        raise MonitorError("Webhook sender requires webhook backend")
     url = validate_sender_config(config)
     timestamp = str(int(time.time()))
     payload = {"msg_type": "text", "content": {"text": alert.text},
@@ -445,6 +461,13 @@ def webhook_sender(config: Config, alert: Alert) -> str:
         raise SendUnknown("Webhook delivery unconfirmed; no automatic retry") from None
     # Bot v2 returns no usable message ID: record an acknowledgement, not invent one.
     return "webhook_code_0"
+
+
+def notification_sender(config: Config, alert: Alert) -> str:
+    if notification_backend() == "app":
+        from feishu_app import app_sender
+        return app_sender(config, alert)
+    return webhook_sender(config, alert)
 
 
 def dispatch(alert: Alert, config: Config, store: StateStore, state: dict,
@@ -481,7 +504,7 @@ def dispatch(alert: Alert, config: Config, store: StateStore, state: dict,
 
 def run_once(config: Config, *, send: bool = False, input_path: Path | None = None,
              now: datetime | None = None, fetcher=fetch_current,
-             sender=webhook_sender, store: StateStore | None = None) -> dict:
+             sender=notification_sender, store: StateStore | None = None) -> dict:
     now = now or utc_now()
     if input_path is not None and send:
         raise MonitorError("Sending with a fixture/input file is forbidden")
