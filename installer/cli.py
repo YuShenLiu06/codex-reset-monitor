@@ -81,9 +81,14 @@ def main(argv=None):
         if not shutil.which('gh'):raise SetupError('GH_CLI_REQUIRED','install the official GitHub CLI first; no authorization started')
         public=configure_public(args.public_config,emit,args.client_id,args.app_slug)
         args.client_id,args.app_slug=public['client_id'],public['app_slug']
-        target=args.target or input('目标仓库 OWNER/REPO：').strip()
+        target=args.target
+        if target is None and args.progress.exists():
+            try:target=json.loads(args.progress.read_text())['target']
+            except Exception:raise SetupError('INVALID_RESUME_STATE') from None
+            emit('target','续接已保存目标：'+str(target))
+        target=target or input('目标仓库 OWNER/REPO：').strip()
         progress=Progress(args.progress,target)
-        policy=input('目标仓库策略：复用已有 [默认 reuse] / 官方页面新建 fork：').strip() or 'reuse'
+        policy='reuse' if 'target' in progress.data['completed'] else (input('目标仓库策略：复用已有 [默认 reuse] / 官方页面新建 fork：').strip() or 'reuse')
         if policy not in ('reuse','fork'):raise SetupError('INVALID_REPOSITORY_CHOICE')
         if policy=='fork':
             emit('target','请在 https://github.com/'+SOURCE_REPOSITORY+'/fork 点击官方 Fork，并将名称设为目标 '+progress.target+'；程序不会自动创建或覆盖仓库。')

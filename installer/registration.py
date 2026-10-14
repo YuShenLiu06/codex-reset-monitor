@@ -1,6 +1,7 @@
 """Public-only GitHub App configuration and user-operated registration guide."""
 import json
 import os
+import pkgutil
 from pathlib import Path
 import re
 import tempfile
@@ -54,6 +55,16 @@ def save(path,value):
 def configure(path,emit,client_id=None,app=None):
     if bool(client_id)!=bool(app):raise SetupError('PUBLIC_CONFIG_PAIR_REQUIRED')
     if client_id:return public_config(client_id,app)
+    try:bundled=pkgutil.get_data('installer','public_app.json')
+    except FileNotFoundError:bundled=None
+    if bundled is not None:
+        try:
+            raw=json.loads(bundled)
+            if set(raw)!={'version','client_id','app_slug'} or raw['version']!=1:raise ValueError()
+            result=public_config(raw['client_id'],raw['app_slug'])
+        except Exception:raise SetupError('INVALID_BUNDLED_PUBLIC_CONFIG') from None
+        emit('github','使用发行包内公开安装器 App：'+result['app_slug'])
+        return result
     existing=load(path)
     if existing:
         emit('github','继续使用已保存的公开 App：'+existing['app_slug'])

@@ -43,3 +43,15 @@ class RegistrationTest(unittest.TestCase):
     def test_interactive_default_enters_configuration(self):
         with patch.object(cli.sys.stdin,'isatty',return_value=True),patch.object(cli.sys.stdout,'isatty',return_value=True),patch('builtins.input',return_value=''),patch.object(cli.shutil,'which',return_value='/trusted/gh'),patch.object(cli,'configure_public',side_effect=SetupError('USER_CANCELLED')) as configure:
             self.assertEqual(cli.main([]),2);configure.assert_called_once()
+    def test_trusted_bundle_skips_maintainer_prompts(self):
+        import json
+        public=r.public_config('Iv1.PublicID','shared-installer')
+        with tempfile.TemporaryDirectory() as d,patch.object(r.pkgutil,'get_data',return_value=json.dumps(public).encode()),patch('builtins.input',side_effect=AssertionError('no registration prompt')),patch.object(r.webbrowser,'open',side_effect=AssertionError('no browser')):
+            self.assertEqual(r.configure(Path(d)/'none.json',lambda *a:None),public)
+    def test_build_embeds_only_validated_public_configuration(self):
+        import zipfile,json
+        from scripts.build_release import build
+        with tempfile.TemporaryDirectory() as d:
+            build(d,{'client_id':'Iv1.PublicID','app_slug':'shared-installer'})
+            with zipfile.ZipFile(Path(d)/'codex-reset-install.pyz') as archive:
+                self.assertEqual(json.loads(archive.read('installer/public_app.json'))['app_slug'],'shared-installer')

@@ -24,3 +24,5 @@ GitHub 官方 manifest flow 可以向 `https://github.com/settings/apps/new` POS
 官方依据：[注册 GitHub App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app)、[manifest flow 与参数表](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-from-a-manifest)、[device flow](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app#using-the-device-flow-to-generate-a-user-access-token)。（字段与权限应在提交前再次核对官方页面。）
 
 安装器现在提供首次交互引导并打开[官方支持的 URL 预填注册页](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-using-url-parameters)，权限使用 contents=read、actions=write、secrets=write、variables=write。Device Flow 与 token 过期仍需本人核对。只保存公开 Client ID/slug，无 manifest code 交换、私钥或 client secret 采集。
+
+真实共享 App 创建后，维护者可用 build_release.py 的 --client-id 与 --app-slug 将已审查的公开两项内置进发行包；普通用户无需填写它们，也不会进入 App 注册向导。包内配置优先于本机旧配置，实际安装权限仍由 GitHub API 校验。当前包未内置虚假配置。
