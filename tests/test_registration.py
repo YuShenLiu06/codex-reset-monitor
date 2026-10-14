@@ -46,7 +46,7 @@ class RegistrationTest(unittest.TestCase):
     def test_trusted_bundle_skips_maintainer_prompts(self):
         import json
         public=r.public_config('Iv1.PublicID','shared-installer')
-        with tempfile.TemporaryDirectory() as d,patch.object(r.pkgutil,'get_data',return_value=json.dumps(public).encode()),patch('builtins.input',side_effect=AssertionError('no registration prompt')),patch.object(r.webbrowser,'open',side_effect=AssertionError('no browser')):
+        with tempfile.TemporaryDirectory() as d,patch.object(r,'read_bundled',return_value=json.dumps(public).encode()),patch('builtins.input',side_effect=AssertionError('no registration prompt')),patch.object(r.webbrowser,'open',side_effect=AssertionError('no browser')):
             self.assertEqual(r.configure(Path(d)/'none.json',lambda *a:None),public)
     def test_build_embeds_only_validated_public_configuration(self):
         import zipfile,json
@@ -55,3 +55,11 @@ class RegistrationTest(unittest.TestCase):
             build(d,{'client_id':'Iv1.PublicID','app_slug':'shared-installer'})
             with zipfile.ZipFile(Path(d)/'codex-reset-install.pyz') as archive:
                 self.assertEqual(json.loads(archive.read('installer/public_app.json'))['app_slug'],'shared-installer')
+    def test_unexpected_error_shows_stage_type_without_payload(self):
+        import io,contextlib
+        stream=io.StringIO();stream.isatty=lambda:True
+        with patch.object(cli.sys.stdin,'isatty',return_value=True),patch.object(cli.sys.stdout,'isatty',return_value=True),patch('builtins.input',return_value='Y'),patch.object(cli.shutil,'which',return_value='/trusted/gh'),patch.object(cli,'configure_public',side_effect=OSError('PRIVATE_UPSTREAM_PAYLOAD')),contextlib.redirect_stdout(stream):
+            self.assertEqual(cli.main([]),2)
+        self.assertIn('阶段=public-app-config',stream.getvalue())
+        self.assertIn('类型=OSError',stream.getvalue())
+        self.assertNotIn('PRIVATE_UPSTREAM_PAYLOAD',stream.getvalue())

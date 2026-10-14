@@ -1,7 +1,7 @@
 """Public-only GitHub App configuration and user-operated registration guide."""
 import json
 import os
-import pkgutil
+from installer.resources import read_bundled
 from pathlib import Path
 import re
 import tempfile
@@ -55,8 +55,7 @@ def save(path,value):
 def configure(path,emit,client_id=None,app=None):
     if bool(client_id)!=bool(app):raise SetupError('PUBLIC_CONFIG_PAIR_REQUIRED')
     if client_id:return public_config(client_id,app)
-    try:bundled=pkgutil.get_data('installer','public_app.json')
-    except FileNotFoundError:bundled=None
+    bundled=read_bundled('public_app.json')
     if bundled is not None:
         try:
             raw=json.loads(bundled)

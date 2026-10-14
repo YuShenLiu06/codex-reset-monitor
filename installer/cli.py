@@ -22,9 +22,8 @@ def require(prompt,word):
 
 def manifest():
     # Installed zipapp uses a build-time allowlist, never untrusted remote hashes.
-    import pkgutil
-    try:bundled=pkgutil.get_data('installer','trusted_files.json')
-    except FileNotFoundError:bundled=None
+    from installer.resources import read_bundled
+    bundled=read_bundled('trusted_files.json')
     if bundled is not None:return json.loads(bundled)
     return expected_manifest(Path(__file__).resolve().parents[1])
 
@@ -72,15 +71,17 @@ def main(argv=None):
     emit('plan','默认禁用；用户可在安全预览后确认一次测试通知，确认收到再明确启用。真实安装器 App 尚需维护者注册。')
     interactive=sys.stdin.isatty() and sys.stdout.isatty()
     if args.plan or (not args.run and not interactive):return 0
-    api=None;values=None;token=None
+    api=None;values=None;token=None;stage='preflight'
     try:
         if sys.platform not in ('darwin','linux'):raise SetupError('PLATFORM_UNSUPPORTED','live installer currently supports macOS/Linux only')
         if not sys.stdin.isatty() or not sys.stdout.isatty():raise SetupError('INTERACTIVE_USER_TERMINAL_REQUIRED')
         if not args.run and input('开始逐步安装？[Y/n]：').strip().lower() not in ('','y','yes'):
             emit('stopped','已取消，未开始配置。');return 0
         if not shutil.which('gh'):raise SetupError('GH_CLI_REQUIRED','install the official GitHub CLI first; no authorization started')
+        stage='public-app-config'
         public=configure_public(args.public_config,emit,args.client_id,args.app_slug)
         args.client_id,args.app_slug=public['client_id'],public['app_slug']
+        stage='repository-target'
         target=args.target
         if target is None and args.progress.exists():
             try:target=json.loads(args.progress.read_text())['target']
@@ -97,8 +98,10 @@ def main(argv=None):
         emit('github','在 https://github.com/apps/'+args.app_slug+'/installations/new 仅选择 '+progress.target+'，不要选所有仓库。')
         require('已完成官方仓库选择与 App 安装，输入完整目标仓库继续：',progress.target)
         progress.mark('target')
+        stage='github-authorization'
         token=device_authorize(args.client_id,emit)
         api=GitHubAPI(token);progress.mark('github')
+        stage='repository-validation'
         installer=Installer(api,progress,manifest(),emit)
         installer.check(args.app_slug)
         require('确认当前授权 GitHub 用户，输入 '+installer.github_login+'：',installer.github_login)
@@ -116,19 +119,24 @@ def main(argv=None):
             require('已检查 Secret 名称且将复用同一应用重新配置，输入 REUSE：','REUSE')
             progress.data['pending']=None;progress.save()
         if 'secrets' not in progress.data['completed'] or args.acknowledge_partial_secrets:
+            stage='feishu-registration'
             values=collect_feishu(progress,emit)
             emit('secrets','将写入 '+progress.target+'：'+', '.join(APP_SECRET_NAMES)+'；只向授权本人通知。')
             require('最终敏感配置确认：输入完整目标仓库名：',progress.target)
             installer.check(args.app_slug)
+            stage='secret-upload'
             installer.configure(values)
+        stage='workflow-validation'
         installer.validate()
         if input('是否明确授权一次安装测试通知？输入 SEND_TEST，否则保持关闭退出：').strip()!='SEND_TEST':
             emit('complete','保持关闭；未测试通知、未开启监控。');return 0
+        stage='acceptance-test'
         installer.test_notification(user_authorized=True)
         request_id=progress.data['test_request_id']
         emit('test','请在飞书核对「安装测试」消息及请求标识：'+request_id)
         require('确认本人收到对应标识，输入 RECEIVED '+request_id+'：','RECEIVED '+request_id)
         require('明确开启此仓库每小时预测提醒，输入 ENABLE '+progress.target+'：','ENABLE '+progress.target)
+        stage='enable'
         installer.enable_after_received(received_confirmed=True,enable_authorized=True)
         return 0
     except (SetupError,MonitorError) as exc:
@@ -136,8 +144,10 @@ def main(argv=None):
         emit('stopped',str(exc));return 2
     except KeyboardInterrupt:
         emit('stopped','用户取消；进度保留，已开始注册的应用请复用。');return 130
-    except Exception:
-        emit('stopped','UNEXPECTED_ERROR：敏感详情省略；检查进度和官方页面，勿盲目重试。');return 2
+    except EOFError:
+        emit('stopped','USER_INPUT_ENDED：阶段='+stage+'；重新在交互终端运行同一命令续接。');return 2
+    except Exception as exc:
+        emit('stopped','UNEXPECTED_ERROR：阶段='+stage+'；类型='+type(exc).__name__+'；请报告这两项和包版本，勿提供凭据或原始响应。');return 2
     finally:
         if values is not None:values.clear()
         if api is not None:api.close()
