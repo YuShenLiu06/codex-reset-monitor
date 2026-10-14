@@ -334,7 +334,21 @@ def validate_state(state: dict) -> dict:
         parse_time(entry.get("attempted_at"), "state.attempted_at")
     if state.get("last_sent_at") is not None:
         parse_time(state["last_sent_at"], "state.last_sent_at")
+    tests = state.get("acceptance_tests", {})
+    if not isinstance(tests, dict) or len(tests) > 100:
+        raise StateError("Invalid installation test ledger")
+    for key, entry in tests.items():
+        if not isinstance(key, str) or not re.fullmatch(r"[a-f0-9]{32}", key) or not isinstance(entry, dict):
+            raise StateError("Invalid installation test record")
+        if entry.get("status") not in {"pending", "sent", "unknown"}:
+            raise StateError("Invalid installation test status")
+        parse_time(entry.get("attempted_at"), "test.attempted_at")
     return state
+
+
+def unresolved_delivery(state):
+    return any(entry["status"] in {"pending", "unknown"}
+               for entry in list(state["alerts"].values()) + list(state.get("acceptance_tests", {}).values()))
 
 
 class StateStore:
@@ -472,7 +486,7 @@ def notification_sender(config: Config, alert: Alert) -> str:
 
 def dispatch(alert: Alert, config: Config, store: StateStore, state: dict,
              now: datetime, send: bool, sender: Callable[[Config, Alert], str]) -> dict:
-    if any(entry["status"] in {"pending", "unknown"} for entry in state["alerts"].values()):
+    if unresolved_delivery(state):
         return {"status": "blocked_unresolved_delivery", "event_key": alert.key}
     if alert.key in state["alerts"]:
         return {"status": "duplicate_suppressed", "event_key": alert.key}
@@ -531,7 +545,7 @@ def run_once(config: Config, *, send: bool = False, input_path: Path | None = No
             if send and index:
                 time.sleep(1)  # Below bot 5/s and 100/min limits, even with local adapters.
             results.append(dispatch(alert, config, store, state, now, send, sender))
-        unresolved = any(v["status"] in {"pending", "unknown"} for v in state["alerts"].values())
+        unresolved = unresolved_delivery(state)
         result = {"checked_at": iso(now), "mode": "send" if send else "dry-run",
                   "status": "blocked_unresolved_delivery" if unresolved else ("evaluated" if candidates else "below_threshold"),
                   "alerts": results}

@@ -27,11 +27,11 @@ python3 codex-reset-install.pyz --run \
 | GitHub 安装 | 用户在官方 App 安装页面仅选择目标仓库，再进行官方 device 授权。 | App 必须事先真实注册并开启 device flow。只用公开 client_id；没有长期后端、共享 App 私钥或 client_secret。 |
 | 精确权限 | 检查安装记录、仅一个可访问目标仓库、用户仓库权限与 API 可用性。 | 安装器申请 Secrets/Actions/Variables:write、Contents/Metadata:read。拒绝 all repositories、Contents:write、Administration 或其他额外权限。飞书授权不覆盖 GitHub。 |
 | 项目身份 | 核对项目标识、原项目 fork 来源、main 的 SHA 和包内构建时文件哈希。 | 所有 Python 文件和 workflow 均列入可信清单；拒绝未知可执行文件/工作流和符号链接，不能只检查同名或可修改的标识文件。应信任目标仓库写入者；核验快照不能阻止写入者随后改变仓库。 |
-| 飞书应用 | 默认复用已注册应用；明确选新建后调用官方 CLI 使用的 PersonalAgent 注册协议，显示官方确认链接。 | 新注册返回本人 open_id，复用则由用户核验同应用本人 ID。不会自动重建失败会话；退出后 Secret 不保存，必要时安全输入已创建应用信息来复用。无 QR 云服务依赖；官方授权页可在手机浏览器完成，包本身不生成二维码。 |
+| 飞书应用 | 默认扫码新建；明确选择复用时只输入公开 App ID，再走同一官方注册确认流程。使用官方 SDK/CLI 的 PersonalAgent 协议与 addons 最小机器人模板。 | 两种模式均从官方注册响应取得同应用本人 open_id；复用返回的 App ID 必须匹配。不会自动重建失败会话；退出后 Secret 不保存，以公开 App ID 重新官方扫码复用。无 QR 云服务依赖；官方授权页可在手机浏览器完成，包本身不生成二维码。 |
 | 发送资格 | 用户在飞书后台核验机器人能力、`im:message:send_as_bot`、已审批发布版本及本人可用范围，程序检验应用认证。 | 人工核验记录与真实能力验证区分：取得 token 或注册完成都不证明发送权限、范围或送达。需要额外权限的管理 API 不自动申请。 |
 | 最终确认 | 显示目标仓库、5 项 Secret 名称和用途，用户再次输入仓库名。 | 首次仍有官方授权/审批、权限核验及目标确认；不能称零操作。Secret 值不会显示，经官方 `gh secret set` stdin 本地加密上传，后端选择标记最后上传。 |
 | 初始状态 | 安装器关闭发送门控并 dispatch 固定 prepare workflow。 | 临时 `GITHUB_TOKEN` 在 workflow 中用 Contents:write 初始化状态；安装器不获 Contents:write。已有状态保留，已初始化却缺失状态时停止。 |
-| 完整安全检查 | 等待 prepare 和 preview 指定 job 成功，核验 run 的提交、事件、随机关联 ID，检查状态结构。 | 测试、状态及实时预测预览通过，不发送飞书测试消息，不自动开启 `MONITOR_ENABLED`。真实送达仍未证明；调度也不承诺精准或永久在线。 |
+| 完整安全检查 | 等待 prepare 和 preview 指定 job 成功，核验 run 的提交、事件、随机关联 ID，检查状态结构。 | 此阶段保持关闭。随后用户输入 SEND_TEST 才发送一次独立安装测试；收到匹配请求标识后输入 RECEIVED 与 ENABLE 才开启。调度不承诺精准或永久在线。 |
 
 仓库级 Actions 被禁用或组织策略阻止时，安装器停止；用户在 GitHub 官方仓库 Actions/设置页面开启或请求管理员处理。不会申请 Administration 权限代为开启。禁用 fork 的单个 workflow 可在既有 Actions:write 内启用。
 
@@ -43,7 +43,7 @@ GitHub fork API 需要更宽的账户仓库访问，因此不作为默认部署�
 
 - 已知 run ID：重新授权原 GitHub 用户、重新核验仓库后等待原任务，不再 dispatch；numeric user ID 不同会停止。
 - 原 workflow 明确失败：用户修复原因后通过 `--retry-failed-stage prepare|preview` 确认安全重验，核验失败 run 身份并保留旧 run 历史，不自动重试或发消息。
-- dispatch 回应丢失：停止；用户在官方 Actions 页面核验 run，然后通过 `--resolve-run prepare|preview RUN_ID` 明确关联。仍检查提交、关联 ID 和所需 job，不能猜一个成功任务。
+- dispatch 回应丢失：停止；用户在官方 Actions 页面核验 run，然后通过 `--resolve-run prepare|preview|test RUN_ID` 明确关联。仍检查提交、关联 ID 和所需 job，不能猜一个成功任务。
 - Secrets 部分上传：发送门控保持关闭，检查 GitHub 上的 Secret 名称后，以 `--acknowledge-partial-secrets` 明确续接并复用同一飞书应用，不盲目重试。已成功上传的 Secret 无法从 GitHub 读回；中断后重新安全输入是必要恢复步骤。
 - 已开始新注册：保存的是非敏感标志；中断后引导复用应用。没有自动再次创建、重新发消息或清空去重状态。
 
@@ -69,9 +69,11 @@ python3 runtime/release-build/codex-reset-install.pyz
 - [GitHub fork API](https://docs.github.com/en/rest/repos/forks#create-a-fork)：自动 fork 的授权限制。
 - [用户可访问的 App 安装与仓库](https://docs.github.com/en/rest/apps/installations)、[workflow dispatch](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event)。
 - [GitHub CLI Secret 本地加密](https://cli.github.com/manual/gh_secret_set)。
-- [飞书官方 CLI 注册实现](https://github.com/larksuite/cli/blob/main/internal/auth/app_registration.go)：表单协议、默认 5 秒/600 秒、降速/过期处理；该协议没有独立公共稳定性承诺，变更时应停止并更新兼容版本。
+- [飞书官方 CLI 注册实现](https://github.com/larksuite/cli/blob/main/internal/auth/app_registration.go)：表单协议、默认 5 秒/600 秒、降速/过期处理；官方 SDK 也公开提供 registerApp/register_app；本项目以标准库实现兼容流程，变更时停止并更新。
 - [飞书应用消息 API](https://open.feishu.cn/document/server-docs/im-v1/message/create)：应用机器人、发信权限、生效版本、收件人范围；与群 Webhook 不同。
 
 维护者首次 App 字段、权限与 manifest 预填限制见 [GitHub App 创建步骤](github-app-maintainer.md)。
 
 用户本人验收、脱敏反馈及恢复步骤见 [验收清单](user-acceptance.md)。
+
+官方 SDK 对照：[Node registration/addons](https://github.com/larksuite/node-sdk/blob/main/scene/registration/addons.ts)、[Python register_app](https://github.com/larksuite/oapi-sdk-python/blob/v2_main/README.zh.md)。addons 使用 gzip + URL-safe Base64 的 JSON，明确 preset=false，只申请 tenant 的 im:message:send_as_bot，无事件、回调或 user scopes。模板请求不证明权限已生效，仍需用户核验发布与范围。测试通知使用独立随机请求标识及远端写前记录，pending/unknown 无自动重试，也不消耗预测冷却。

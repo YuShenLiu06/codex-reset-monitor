@@ -29,20 +29,19 @@ def manifest():
 
 
 def collect_feishu(progress,emit):
-    choice=input('复用已有应用 [默认 reuse] / 新建 new：').strip() or 'reuse'
-    if choice=='reuse':
-        credentials=AppCredentials(getpass.getpass('已有 App ID（隐藏）：'),getpass.getpass('App Secret（隐藏）：'),
-                                   getpass.getpass('同一应用的本人 open_id（隐藏）：'),'operator_verified_reuse')
-        validate_credentials(credentials)
-        require('在该应用本人资料核验 open_id 后输入 SELF：','SELF')
-    elif choice=='new':
-        if progress.data['app_created']:raise SetupError('REUSE_PREVIOUS_APP','previous registration was started; do not automatically create another app')
-        require('将启动官方 PersonalAgent 注册，输入 CREATE 确认：','CREATE')
+    choice=input('官方扫码新建 [默认 new] / 明确复用 reuse：').strip() or 'new'
+    existing=None
+    if choice=='new':
+        if progress.data['app_created']:raise SetupError('REUSE_PREVIOUS_APP','previous registration started; explicitly reuse it rather than create another')
+        require('将启动官方注册并预填最小发送权限，输入 CREATE：','CREATE')
         progress.data['app_created']=True;progress.save()
-        session=begin_registration()
-        emit('feishu','仅本人打开官方短期验证链接（勿录入公开日志）：'+session.verification_url)
-        credentials=poll_registration(session)
+    elif choice=='reuse':
+        existing=input('要复用的公开 App ID（不需要手填 Secret/open_id）：').strip()
+        require('将对该应用扫码授权最小发送权限，输入 REUSE：','REUSE')
     else:raise SetupError('INVALID_APP_CHOICE')
+    session=begin_registration(create_only=choice=='new',existing_app_id=existing)
+    emit('feishu','官方验证链接（可在飞书/手机打开，勿记录公开日志）：'+session.verification_url)
+    credentials=poll_registration(session)
     emit('feishu','请在飞书后台核验机器人能力、im:message:send_as_bot、已审批发布版本及本人可用范围；注册和 token 均不证明能发送。')
     require('本人身份、发送权限、生效版本和可用范围均已核验，输入 VERIFIED：','VERIFIED')
     record=readiness_record(credentials,self_confirmed=True,published_bot_confirmed=True,
@@ -61,13 +60,13 @@ def main(argv=None):
     parser.add_argument('--app-slug',help='Public slug of that installer GitHub App')
     parser.add_argument('--target',help='OWNER/REPO; prompted if omitted')
     parser.add_argument('--progress',type=Path,default=Path('.codex-reset-setup/state.local.json'))
-    parser.add_argument('--resolve-run',nargs=2,metavar=('STAGE','RUN_ID'),help='User-verified prepare/preview run for a previously unknown dispatch')
+    parser.add_argument('--resolve-run',nargs=2,metavar=('STAGE','RUN_ID'),help='User-verified prepare/preview/test run for a previously unknown dispatch')
     parser.add_argument('--acknowledge-partial-secrets',action='store_true',help='User inspected partial upload and will reuse same app')
     args=parser.parse_args(argv)
     emit=lambda stage,message:print(f'[{stage}] {message}',flush=True)
     emit('plan','官方网页 fork → 仅目标仓库安装 GitHub App → device 授权 → 核验兼容性 → 飞书本人授权 → 最终配置确认 → prepare → 安全 dry-run。')
     emit('plan','安装器权限：Contents:read、Metadata:read、Secrets/Actions/Variables:write；不自动 fork、不覆盖源码、不申请 Administration/Contents:write。')
-    emit('plan','本轮不会自动开启 MONITOR_ENABLED，也不会发送验证消息。真实安装器 App 尚需维护者注册。')
+    emit('plan','默认禁用；用户可在安全预览后确认一次测试通知，确认收到再明确启用。真实安装器 App 尚需维护者注册。')
     if not args.run:return 0
     api=None;values=None;token=None
     try:
@@ -97,7 +96,7 @@ def main(argv=None):
             installer.retry_failed_stage(args.retry_failed_stage)
         if args.resolve_run:
             stage,run=args.resolve_run
-            if stage not in ('prepare','preview') or not run.isdigit() or int(run)<=0 or progress.data['pending']!=stage:
+            if stage not in ('prepare','preview','test') or not run.isdigit() or int(run)<=0 or progress.data['pending']!=stage:
                 raise SetupError('INVALID_RUN_RESOLUTION')
             require('已在官方 Actions 页面核验此 run 对应未知 dispatch，输入 RESOLVE：','RESOLVE')
             progress.data['runs'][stage]=int(run);progress.data['pending']=None;progress.save()
@@ -112,7 +111,14 @@ def main(argv=None):
             installer.check(args.app_slug)
             installer.configure(values)
         installer.validate()
-        emit('complete','请在 Actions 确认结果；实际消息送达未测试。启用发送需另行明确授权。')
+        if input('是否明确授权一次安装测试通知？输入 SEND_TEST，否则保持关闭退出：').strip()!='SEND_TEST':
+            emit('complete','保持关闭；未测试通知、未开启监控。');return 0
+        installer.test_notification(user_authorized=True)
+        request_id=progress.data['test_request_id']
+        emit('test','请在飞书核对「安装测试」消息及请求标识：'+request_id)
+        require('确认本人收到对应标识，输入 RECEIVED '+request_id+'：','RECEIVED '+request_id)
+        require('明确开启此仓库每小时预测提醒，输入 ENABLE '+progress.target+'：','ENABLE '+progress.target)
+        installer.enable_after_received(received_confirmed=True,enable_authorized=True)
         return 0
     except (SetupError,MonitorError) as exc:
         # Only stable local errors; never print auth response, request or credential values.

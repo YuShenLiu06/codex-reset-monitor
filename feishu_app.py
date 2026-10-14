@@ -5,6 +5,8 @@ public API. No credential files, automatic login, refresh storage or retries of 
 """
 from __future__ import annotations
 import dataclasses
+import gzip
+import base64
 import json
 import os
 import re
@@ -98,13 +100,25 @@ class Registration:
     user_code: str
     expires: int
     interval: int
+    create_only: bool = False
+    existing_app_id: str | None = None
 
     @property
     def verification_url(self):
-        return 'https://open.feishu.cn/page/cli?'+urllib.parse.urlencode({'user_code':self.user_code})
+        # Same public addons encoding used by official node-sdk/registerApp:
+        # JSON -> gzip -> URL-safe Base64 without padding. No SDK dependency.
+        addons={'preset':False,'scopes':{'tenant':['im:message:send_as_bot']}}
+        encoded=base64.urlsafe_b64encode(gzip.compress(json.dumps(addons,separators=(',',':')).encode(),mtime=0)).decode().rstrip('=')
+        query={'user_code':self.user_code,'from':'sdk','source':'codex-reset-monitor','tp':'sdk','addons':encoded}
+        if self.create_only:query['createOnly']='true'
+        if self.existing_app_id:query['clientID']=self.existing_app_id
+        return 'https://open.feishu.cn/page/cli?'+urllib.parse.urlencode(query)
 
 
-def begin_registration(request=None):
+def begin_registration(request=None, *, create_only=False, existing_app_id=None):
+    if type(create_only) is not bool or (existing_app_id is not None and (not isinstance(existing_app_id,str) or not re.fullmatch(r'cli_[a-zA-Z0-9_-]{8,128}',existing_app_id))):
+        raise MonitorError('Invalid registration mode or existing app ID')
+    if create_only and existing_app_id is not None:raise MonitorError('New-app and reuse modes cannot be combined')
     request = request or request_json
     data=request(REGISTRATION_URL,{'action':'begin','archetype':'PersonalAgent',
         'auth_method':'client_secret','request_user_info':'open_id tenant_brand'},form=True,timeout=30)
@@ -115,7 +129,7 @@ def begin_registration(request=None):
     expiry=data.get('expire_in',data.get('expires_in',600)); interval=data.get('interval',5)
     if type(expiry) is not int or expiry <= 0: expiry=600
     if type(interval) is not int or interval <= 0: interval=5
-    return Registration(device,user,min(expiry,600),max(5,min(interval,60)))
+    return Registration(device,user,min(expiry,600),max(5,min(interval,60)),create_only,existing_app_id)
 
 
 def poll_registration(session,request=None,clock=time.monotonic,sleep=time.sleep):
@@ -138,6 +152,8 @@ def poll_registration(session,request=None,clock=time.monotonic,sleep=time.sleep
         if not error and data.get('client_id') and data.get('client_secret'):
             credentials=AppCredentials(data['client_id'],data['client_secret'],user.get('open_id',''))
             validate_credentials(credentials)
+            if session.existing_app_id is not None and credentials.app_id!=session.existing_app_id:
+                raise MonitorError('Authorized app does not match explicitly selected reuse app')
             return credentials
         if error == 'slow_down': interval=min(interval+5,60)
         elif error in ('access_denied','expired_token','invalid_grant'):

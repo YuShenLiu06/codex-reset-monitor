@@ -28,7 +28,7 @@ class FakeAPI:
         self.token='ghu_'+'x'*16;self.calls=[];self.variables={};self.runs={};self.ids=100
         self.permissions=dict(c.REQUIRED_PERMISSIONS);self.selection='selected';self.names=[TARGET]
         self.corrupt=None;self.origin=c.SOURCE_REPOSITORY;self.extra=[];self.run_fail=False
-        self.dispatch_lost=False;self.run_pending=False;self.has_state=False
+        self.dispatch_lost=False;self.run_pending=False;self.has_state=False;self.test_records={}
         self.manifest=c.expected_manifest(ROOT)
 
     def close(self):self.token=None
@@ -47,7 +47,7 @@ class FakeAPI:
             return {'truncated':False,'tree':[{'path':name,'mode':'100644'} for name in self.manifest]+self.extra}
         if '/contents/state.json?' in path:
             if not self.has_state:raise SetupError('NOT_FOUND')
-            return {'content':base64.b64encode(json.dumps(empty_state()).encode()).decode()}
+            return {'content':base64.b64encode(json.dumps(dict(empty_state(),acceptance_tests=self.test_records)).encode()).decode()}
         if '/contents/' in path:
             name=path.split('/contents/')[1].split('?')[0]
             raw=(ROOT/name).read_bytes() if name!=self.corrupt else b'changed'
@@ -66,7 +66,7 @@ class FakeAPI:
         if '/actions/runs/' in path:
             number=int(path.split('/actions/runs/')[1].split('/')[0])
             if path.endswith('/jobs?per_page=100'):
-                return {'jobs':[{'name':'prepare' if self.runs[number]['workflow']=='prepare.yml' else 'preview',
+                return {'jobs':[{'name':{'prepare.yml':'prepare','monitor.yml':'preview','acceptance.yml':'acceptance'}[self.runs[number]['workflow']],
                                  'conclusion':'failure' if self.run_fail else 'success'}]}
             return self.runs[number]
         if '/actions/workflows/' in path:
@@ -82,6 +82,7 @@ class FakeAPI:
                     'status':'in_progress' if self.run_pending else 'completed',
                     'conclusion':'failure' if self.run_fail else 'success'}
                 if workflow=='prepare.yml':self.has_state=True
+                if workflow=='acceptance.yml':self.test_records[payload['inputs']['test_request_id']]={'status':'sent','attempted_at':'2026-10-14T12:00:00Z','receipt':'om_test'}
                 if self.dispatch_lost:raise SetupError('GITHUB_RESPONSE_UNKNOWN')
                 return None
             return {'state':'active'}
@@ -96,6 +97,17 @@ class InstallerTest(unittest.TestCase):
         self.values={name:'synthetic-'+name.lower() for name in c.APP_SECRET_NAMES}
 
     def tearDown(self):self.temp.cleanup()
+
+    def test_new_secret_configuration_invalidates_prior_acceptance(self):
+        self.core.check('unit-installer');self.core.configure(self.values,Mock());self.core.validate()
+        self.core.test_notification(user_authorized=True)
+        old_run=self.progress.data['runs']['test']
+        self.core.configure(self.values,Mock())
+        self.assertIsNone(self.progress.data['test_request_id'])
+        self.assertNotIn('test',self.progress.data['runs'])
+        self.assertIn(old_run,self.progress.data['run_history']['test'])
+        with self.assertRaises(SetupError):
+            self.core.enable_after_received(received_confirmed=True,enable_authorized=True)
 
     def test_simulated_e2e_configure_prepare_preview_without_enable_or_fork(self):
         self.core.check('unit-installer')
@@ -172,6 +184,53 @@ class InstallerTest(unittest.TestCase):
         with self.assertRaises(SetupError):self.core.workflow('prepare.yml','prepare',{'confirm_first_setup':'true'})
         self.assertNotIn('prepare',self.progress.data['completed'])
 
+
+    def test_user_authorized_test_then_confirmed_receive_can_enable(self):
+        self.core.check('unit-installer');self.core.configure(self.values,Mock());self.core.validate()
+        with self.assertRaises(SetupError):self.core.test_notification()
+        self.core.test_notification(user_authorized=True)
+        with self.assertRaises(SetupError):self.core.enable_after_received(received_confirmed=True)
+        self.core.enable_after_received(received_confirmed=True,enable_authorized=True)
+        self.assertEqual(self.api.variables['MONITOR_ENABLED'],'true')
+        self.assertIn('enabled',self.progress.data['completed'])
+        self.assertEqual(len(self.api.runs),3)
+        self.core.test_notification(user_authorized=True)
+        self.assertEqual(len(self.api.runs),3)
+
+
+    def test_cli_confirmed_receipt_and_enable_simulated_e2e(self):
+        stream=io.StringIO()
+        def user_answer(prompt):
+            if prompt.startswith('目标仓库策略'):return 'reuse'
+            if '当前授权 GitHub 用户' in prompt:return 'ExampleUser'
+            if '是否明确授权一次' in prompt:return 'SEND_TEST'
+            if '确认本人收到' in prompt:return 'RECEIVED '+json.loads(self.path.read_text())['test_request_id']
+            if '明确开启此仓库' in prompt:return 'ENABLE '+TARGET
+            return TARGET
+        with contextlib.redirect_stdout(stream),patch.object(sys.stdin,'isatty',return_value=True),patch.object(sys.stdout,'isatty',return_value=True),             patch.object(cli,'device_authorize',return_value=self.api.token),patch.object(cli,'GitHubAPI',return_value=self.api),             patch.object(cli,'manifest',return_value=self.api.manifest),patch.object(cli,'collect_feishu',return_value=self.values),             patch.object(c,'upload_secrets'),patch('builtins.input',side_effect=user_answer):
+            code=cli.main(['--run','--client-id','unit-public-id','--app-slug','unit-installer','--target',TARGET,'--progress',str(self.path)])
+        self.assertEqual(code,0)
+        self.assertEqual(self.api.variables['MONITOR_ENABLED'],'true')
+        self.assertEqual(len(self.api.runs),3)
+        self.assertIsNone(self.api.token)
+
+    def test_default_feishu_new_uses_official_scan_without_manual_secret(self):
+        import feishu_app
+        credentials=feishu_app.AppCredentials('cli_'+'x'*16,'synthetic-secret','ou_'+'y'*24)
+        session=Mock();session.verification_url='https://open.feishu.cn/page/cli?user_code=TEST'
+        with patch('builtins.input',side_effect=['','CREATE','VERIFIED']),patch.object(cli,'begin_registration',return_value=session) as begin,             patch.object(cli,'poll_registration',return_value=credentials),patch.object(cli,'tenant_token',return_value='synthetic-tat'),             patch.object(cli.getpass,'getpass',side_effect=AssertionError('No manual secret required')):
+            values=cli.collect_feishu(self.progress,self.emit)
+        self.assertEqual(values['FEISHU_APP_ID'],credentials.app_id)
+        self.assertEqual(begin.call_args.kwargs,{'create_only':True,'existing_app_id':None})
+
+    def test_unknown_test_ledger_cannot_enable_or_generate_new_send(self):
+        self.core.check('unit-installer');self.core.configure(self.values,Mock());self.core.validate()
+        self.core.test_notification(user_authorized=True)
+        request=self.progress.data['test_request_id'];self.api.test_records[request]['status']='unknown'
+        with self.assertRaises(SetupError):self.core.enable_after_received(received_confirmed=True,enable_authorized=True)
+        self.assertEqual(self.api.variables['MONITOR_ENABLED'],'false')
+        self.assertEqual(len(self.api.runs),3)
+
     def test_resume_github_user_id_mismatch_stops_before_mutations(self):
         self.core.check('unit-installer')
         original=self.api.request
@@ -235,12 +294,12 @@ class InstallerTest(unittest.TestCase):
         with contextlib.redirect_stdout(stream),patch.object(sys.stdin,'isatty',return_value=True),patch.object(sys.stdout,'isatty',return_value=True),\
              patch.object(cli,'device_authorize',return_value=self.api.token),patch.object(cli,'GitHubAPI',return_value=self.api),\
              patch.object(cli,'manifest',return_value=self.api.manifest),patch.object(cli,'collect_feishu',return_value=self.values),\
-             patch.object(c,'upload_secrets') as upload,patch('builtins.input',side_effect=['reuse',TARGET,'ExampleUser',TARGET]):
+             patch.object(c,'upload_secrets') as upload,patch('builtins.input',side_effect=['reuse',TARGET,'ExampleUser',TARGET,'']):
             code=cli.main(['--run','--client-id','unit-public-id','--app-slug','unit-installer','--target',TARGET,'--progress',str(self.path)])
         self.assertEqual(code,0);upload.assert_called_once()
         self.assertIsNone(self.api.token)
         self.assertEqual(self.values,{})
-        self.assertIn('MONITOR_ENABLED 仍为 false',stream.getvalue())
+        self.assertIn('当前 MONITOR_ENABLED=false',stream.getvalue())
 
     def test_cli_default_plan_never_accesses_accounts_or_credentials(self):
         with contextlib.redirect_stdout(io.StringIO()),patch.object(cli,'device_authorize',side_effect=AssertionError()),\

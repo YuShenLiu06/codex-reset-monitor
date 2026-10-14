@@ -11,7 +11,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from github_state import BRANCH, REPOSITORY
-from monitor import Config, MonitorError, StateStore, empty_state, validate_sender_config
+from monitor import Config, MonitorError, StateStore, empty_state, validate_sender_config, unresolved_delivery
 
 
 def gh(arguments, *, body=None, allow_missing=False):
@@ -80,7 +80,7 @@ def enable():
     with tempfile.TemporaryDirectory() as directory:
         path=Path(directory)/'state.json'; path.write_bytes(raw)
         state=StateStore(path).read()
-    if any(v['status'] in ('pending','unknown') for v in state['alerts'].values()):
+    if unresolved_delivery(state):
         raise RuntimeError('Unresolved delivery blocks enable; reconcile manually first')
     names={item['name'] for item in api('actions/secrets')['secrets']}
     if not {'FEISHU_WEBHOOK_URL','FEISHU_SIGNING_SECRET'} <= names:

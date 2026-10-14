@@ -90,7 +90,7 @@ class AppTest(unittest.TestCase):
             'auth_method':'client_secret','request_user_info':'open_id tenant_brand'})
         self.assertTrue(request.call_args.kwargs['form'])
         self.assertEqual(request.call_args.kwargs['timeout'],30)
-        self.assertEqual(session.verification_url,'https://open.feishu.cn/page/cli?user_code=ABC-123')
+        self.assertTrue(session.verification_url.startswith('https://open.feishu.cn/page/cli?user_code=ABC-123&'))
 
     def test_begin_ignores_upstream_verification_url(self):
         response={'device_code':'synthetic-device','user_code':'ABC',
@@ -98,6 +98,20 @@ class AppTest(unittest.TestCase):
         session=a.begin_registration(Mock(return_value=response))
         self.assertTrue(session.verification_url.startswith('https://open.feishu.cn/page/cli?'))
         self.assertEqual((session.expires,session.interval),(600,60))
+
+    def test_sdk_addons_minimal_template_and_explicit_reuse(self):
+        import base64,gzip,urllib.parse
+        request=Mock(return_value={'device_code':'device','user_code':'ABC'})
+        session=a.begin_registration(request,create_only=True)
+        query=urllib.parse.parse_qs(urllib.parse.urlsplit(session.verification_url).query)
+        encoded=query['addons'][0]
+        addons=json.loads(gzip.decompress(base64.urlsafe_b64decode(encoded+'='*((4-len(encoded)%4)%4))))
+        self.assertEqual(addons,{'preset':False,'scopes':{'tenant':['im:message:send_as_bot']}})
+        self.assertEqual(query['createOnly'],['true'])
+        session=a.begin_registration(request,existing_app_id=self.credentials.app_id)
+        query=urllib.parse.parse_qs(urllib.parse.urlsplit(session.verification_url).query)
+        self.assertEqual(query['clientID'],[self.credentials.app_id])
+        with self.assertRaises(m.MonitorError):a.begin_registration(request,create_only=True,existing_app_id=self.credentials.app_id)
 
     def test_legacy_expiry_and_invalid_defaults(self):
         base={'device_code':'synthetic-device','user_code':'ABC'}

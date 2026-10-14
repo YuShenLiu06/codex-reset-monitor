@@ -20,8 +20,9 @@ SOURCE_REPOSITORY='YuShenLiu06/codex-reset-monitor'
 PROJECT_ID='codex-reset-monitor:24h-feishu:v1'
 REQUIRED_PERMISSIONS={'contents':'read','metadata':'read','actions':'write','secrets':'write','variables':'write'}
 TRUSTED_FILES=('project.json','monitor.py','github_state.py','feishu_app.py','bootstrap_state.py',
-               '.github/workflows/monitor.yml','.github/workflows/prepare.yml','.github/workflows/ci.yml')
-STAGES=('target','github','compatibility','feishu','secrets','prepare','preview','complete')
+               '.github/workflows/monitor.yml','.github/workflows/prepare.yml','.github/workflows/ci.yml',
+               'acceptance.py','.github/workflows/acceptance.yml')
+STAGES=('target','github','compatibility','feishu','secrets','prepare','preview','complete','test','enabled')
 
 
 def validate_target(target):
@@ -44,18 +45,19 @@ class Progress:
     """Only a strictly bounded metadata schema is allowed on disk."""
     def __init__(self,path,target):
         self.path=Path(path);self.target=validate_target(target)
-        self.data={'version':1,'target':target,'completed':[],'runs':{},'app_created':False,'pending':None,'dispatch_ids':{},'github_user_id':None,'run_history':{}}
+        self.data={'version':1,'target':target,'completed':[],'runs':{},'app_created':False,'pending':None,'dispatch_ids':{},'github_user_id':None,'run_history':{},'test_request_id':None,'received_confirmed':False}
         if self.path.exists():
             try:
                 value=decode_json(self.path.read_bytes(),32768)
                 if not isinstance(value,dict) or set(value)!=set(self.data) or type(value['version']) is not int or value['version']!=1 or value['target']!=target:
                     raise ValueError()
                 if not isinstance(value['completed'],list) or any(s not in STAGES for s in value['completed']):raise ValueError()
-                if type(value['app_created']) is not bool or value['pending'] not in (None,'secrets','prepare','preview'):raise ValueError()
-                if not isinstance(value['runs'],dict) or any(k not in ('prepare','preview') or type(v) is not int or v<=0 for k,v in value['runs'].items()):raise ValueError()
-                if not isinstance(value['dispatch_ids'],dict) or any(k not in ('prepare','preview') or not isinstance(v,str) or not re.fullmatch(r'[0-9a-f]{32}',v) for k,v in value['dispatch_ids'].items()):raise ValueError()
+                if type(value['app_created']) is not bool or value['pending'] not in (None,'secrets','prepare','preview','test','enable'):raise ValueError()
+                if not isinstance(value['runs'],dict) or any(k not in ('prepare','preview','test') or type(v) is not int or v<=0 for k,v in value['runs'].items()):raise ValueError()
+                if not isinstance(value['dispatch_ids'],dict) or any(k not in ('prepare','preview','test') or not isinstance(v,str) or not re.fullmatch(r'[0-9a-f]{32}',v) for k,v in value['dispatch_ids'].items()):raise ValueError()
                 if value['github_user_id'] is not None and (type(value['github_user_id']) is not int or value['github_user_id']<=0):raise ValueError()
-                if not isinstance(value['run_history'],dict) or any(k not in ('prepare','preview') or not isinstance(v,list) or len(v)>20 or any(type(n) is not int or n<=0 for n in v) for k,v in value['run_history'].items()):raise ValueError()
+                if not isinstance(value['run_history'],dict) or any(k not in ('prepare','preview','test') or not isinstance(v,list) or len(v)>20 or any(type(n) is not int or n<=0 for n in v) for k,v in value['run_history'].items()):raise ValueError()
+                if type(value['received_confirmed']) is not bool or (value['test_request_id'] is not None and (not isinstance(value['test_request_id'],str) or not re.fullmatch(r'[0-9a-f]{32}',value['test_request_id']))):raise ValueError()
                 self.data=value
             except Exception:raise SetupError('INVALID_RESUME_STATE','do not silently discard installation history') from None
 
@@ -132,7 +134,7 @@ def verify_installation(api,target,slug):
     return {'login':user['login'],'id':user['id']}
 
 
-def verify_repository(api,target,manifest):
+def verify_repository(api,target,manifest,*,allow_enabled=False):
     metadata=api.request('GET','/repos/'+target)
     if metadata.get('full_name')!=target or metadata.get('default_branch')!='main' or metadata.get('archived') or metadata.get('disabled'):
         raise SetupError('INCOMPATIBLE_REPOSITORY')
@@ -157,12 +159,12 @@ def verify_repository(api,target,manifest):
             if data.get('encoding')!='base64' or hashlib.sha256(content).hexdigest()!=expected:raise ValueError()
             if name=='project.json' and decode_json(content).get('project_id')!=PROJECT_ID:raise ValueError()
         except Exception:raise SetupError('PROJECT_FILES_MISMATCH','use a reviewed matching release; no files overwritten') from None
-    for workflow in ('ci.yml','monitor.yml','prepare.yml'):
+    for workflow in ('ci.yml','monitor.yml','prepare.yml','acceptance.yml'):
         api.request('GET','/repos/'+target+'/actions/workflows/'+workflow)
     api.request('GET','/repos/'+target+'/actions/secrets/public-key')
     variables=api.request('GET','/repos/'+target+'/actions/variables?per_page=100')
     if variables.get('total_count',0)>100:raise SetupError('VARIABLE_LIST_TOO_LARGE')
-    if any(v.get('name')=='MONITOR_ENABLED' and v.get('value')=='true' for v in variables.get('variables',[])):
+    if not allow_enabled and any(v.get('name')=='MONITOR_ENABLED' and v.get('value')=='true' for v in variables.get('variables',[])):
         raise SetupError('MONITOR_ALREADY_ENABLED','disable and stop running notifications before replacing credentials')
     return commit
 
@@ -201,7 +203,7 @@ class Installer:
         self.github_login=identity['login']
         self.progress.data['github_user_id']=identity['id'];self.progress.save()
         self.emit('github','当前授权 GitHub 用户：'+identity['login']+'；目标：'+self.progress.target)
-        self.commit=verify_repository(self.api,self.progress.target,self.manifest)
+        self.commit=verify_repository(self.api,self.progress.target,self.manifest,allow_enabled=self.progress.data['pending']=='enable' and self.progress.data['received_confirmed'])
         self.progress.mark('compatibility');self.emit('compatibility','目标身份、代码及权限已核验；不会覆盖源码。')
 
     def set_variable(self,name,value):
@@ -218,13 +220,23 @@ class Installer:
             raise SetupError('PREVIOUS_SECRET_UPLOAD_UNKNOWN','explicitly inspect GitHub then resolve; no blind retry')
         self.emit('secrets','明确保持发送关闭；开始本地加密上传，值不会显示。')
         self.set_variable('MONITOR_ENABLED','false')
+        old_run=self.progress.data['runs'].get('test')
+        if old_run is not None:
+            history=self.progress.data['run_history'].setdefault('test',[])
+            if len(history)>=20:raise SetupError('TEST_HISTORY_FULL','manual review required')
+            history.append(old_run)
+        self.progress.data['runs'].pop('test',None)
+        self.progress.data['dispatch_ids'].pop('test',None)
+        self.progress.data['test_request_id']=None
+        self.progress.data['received_confirmed']=False
+        self.progress.data['completed']=[s for s in self.progress.data['completed'] if s not in ('test','enabled')]
         self.progress.data['pending']='secrets';self.progress.save()
         upload(self.api.token,self.progress.target,values)
         self.progress.data['pending']=None;self.progress.mark('secrets')
 
     def workflow(self,name,stage,inputs):
         if not self.commit:raise SetupError('CHECK_REQUIRED')
-        self.emit(stage,'核验固定 workflow 并等待结果；不发送通知。')
+        self.emit(stage,'核验固定 workflow 并等待结果；'+('执行用户明确授权的安装测试。' if stage=='test' else '不发送通知。'))
         path=self.base+'/actions/workflows/'+name
         if stage in self.progress.data['runs']:
             return self.wait_run(self.progress.data['runs'][stage],stage)
@@ -261,7 +273,7 @@ class Installer:
             if result.get('status')=='completed':
                 if result.get('conclusion')!='success':raise SetupError('WORKFLOW_FAILED','inspect official Actions logs; no credential logs requested')
                 jobs=self.api.request('GET',self.base+'/actions/runs/'+str(run)+'/jobs?per_page=100')
-                expected='prepare' if stage=='prepare' else 'preview'
+                expected={'prepare':'prepare','preview':'preview','test':'acceptance'}[stage]
                 matches=[job for job in jobs.get('jobs',[]) if job.get('name')==expected]
                 if len(matches)!=1 or matches[0].get('conclusion')!='success':raise SetupError('REQUIRED_JOB_NOT_SUCCESSFUL')
                 self.progress.mark(stage);return run
@@ -287,6 +299,37 @@ class Installer:
         self.progress.data['completed']=[s for s in self.progress.data['completed'] if s not in (stage,'complete')]
         self.progress.save()
 
+    def test_notification(self, *, user_authorized=False):
+        if user_authorized is not True:raise SetupError('TEST_SEND_CONFIRMATION_REQUIRED')
+        if not {'prepare','preview','complete'}<=set(self.progress.data['completed']):raise SetupError('VALIDATION_REQUIRED_BEFORE_TEST')
+        if self.progress.data['test_request_id'] is None:
+            self.progress.data['test_request_id']=secrets.token_hex(16);self.progress.save()
+        return self.workflow('acceptance.yml','test',{'confirm_test_send':'true',
+            'test_request_id':self.progress.data['test_request_id']})
+
+    def enable_after_received(self, *, received_confirmed=False, enable_authorized=False):
+        if received_confirmed is not True or enable_authorized is not True:
+            raise SetupError('RECEIPT_AND_ENABLE_CONFIRMATIONS_REQUIRED')
+        if not {'prepare','preview','test','complete'}<=set(self.progress.data['completed']) or self.progress.data['pending'] not in (None,'enable'):
+            raise SetupError('SUCCESSFUL_ACCEPTANCE_REQUIRED')
+        head=self.api.request('GET',self.base+'/git/ref/heads/main')['object']['sha']
+        if head!=self.commit:raise SetupError('TARGET_CHANGED')
+        state=self.api.request('GET',self.base+'/contents/state.json?ref=monitor-state')
+        from monitor import validate_state, unresolved_delivery
+        try:state=validate_state(decode_json(base64.b64decode(state['content']),1048576))
+        except Exception:raise SetupError('STATE_VALIDATION_FAILED') from None
+        record=state.get('acceptance_tests',{}).get(self.progress.data['test_request_id'],{})
+        if record.get('status')!='sent' or unresolved_delivery(state):raise SetupError('TEST_DELIVERY_NOT_CONFIRMED')
+        self.progress.data['received_confirmed']=True
+        self.progress.data['pending']='enable';self.progress.save()
+        # A lost variable-write acknowledgement is resolved by readback, never
+        # by another test send. This enabling step is explicitly authorized.
+        self.set_variable('MONITOR_ENABLED','true')
+        actual=self.api.request('GET',self.base+'/actions/variables/MONITOR_ENABLED')
+        if actual.get('value')!='true':raise SetupError('ENABLE_UNCONFIRMED')
+        self.progress.data['pending']=None;self.progress.mark('enabled')
+        self.emit('enabled','已核验开启门控；实际 schedule 时效仍取决于 GitHub。')
+
     def validate(self):
         self.workflow('prepare.yml','prepare',{'confirm_first_setup':'true'})
         self.set_variable('MONITOR_INITIALIZED','true')
@@ -296,4 +339,5 @@ class Installer:
         except Exception:raise SetupError('STATE_VALIDATION_FAILED') from None
         self.workflow('monitor.yml','preview',{'dry_run':'true'})
         self.progress.mark('complete')
-        self.emit('complete','准备及安全预览通过；没有发送消息，MONITOR_ENABLED 仍为 false。')
+        gate=self.api.request('GET',self.base+'/actions/variables/MONITOR_ENABLED').get('value')
+        self.emit('complete','准备及安全预览通过；此阶段不发送消息，当前 MONITOR_ENABLED='+str(gate)+'。')

@@ -13,7 +13,7 @@
 3. 新建飞书应用时仅在官方验证页面授权；已有应用选择复用。核验同应用本人 open_id、机器人能力、发送权限、生效发布版本和可用范围。
 4. 最终确认拟写 Secret 名称和仓库；值应隐藏，没有出现在终端参数、文件或公开日志中。
 5. 查看 prepare 与 preview 的本次 run：正确目标仓库、提交、关联 ID，所需 job 成功；原 ledger 仍保留。预览后 `MONITOR_ENABLED=false`，没有通知发送。
-6. 安装器的自动安全检查不发送验证消息。真正开启预测通知需你另行明确设置发送门控并核验群/本人消息；预测不超过阈值时没有消息是正常的，不能拿“没收到”证明发送失败。不要编造预测数据测试。
+6. 本人输入 SEND_TEST，授权一次明确标为“安装测试”的通知。在飞书收到匹配请求标识后，输入 RECEIVED 加该标识，再输入 ENABLE 加完整仓库名。任一步不确认均保持关闭；测试结果不明时停止核对，不盲目重发。测试独立于预测，不编造预测数据。
 7. 安装后撤销安装工具 GitHub 安装及用户授权。真实结果反馈时仅提供下列脱敏信息。
 
 ## 可以反馈什么
@@ -30,15 +30,15 @@
 - `PERMISSION_OR_POLICY`：在官方页面核验选中仓库和最小权限；组织策略/仓库 Actions 禁用由用户或管理员处理，不扩大权限绕过。
 - `RESUME_IDENTITY_MISMATCH`：用原 GitHub 用户续接；另一用户应使用独立进度文件，不借用原用户已完成阶段。
 - `SECRET_UPLOAD_UNCONFIRMED`：门控仍关闭，先检查 GitHub Secret 名称；明确复用同一飞书应用后用 `--acknowledge-partial-secrets`，会要求用户确认。不要重新创建应用。
-- `PREVIOUS_DISPATCH_UNKNOWN`：先在 Actions 找到匹配的提交和关联 ID，用 `--resolve-run prepare|preview RUN_ID`，不能随便选一个成功 run。
+- `PREVIOUS_DISPATCH_UNKNOWN`：先在 Actions 找到匹配的提交和关联 ID，用 `--resolve-run prepare|preview|test RUN_ID`，不能随便选一个成功 run。
 - `WORKFLOW_FAILED`：修复失败原因后使用 `--retry-failed-stage prepare|preview`；会要求用户确认，并保留旧 run 记录。它只重验无消息的 prepare/preview，不重发通知。
 - `WORKFLOW_TIMEOUT`：run ID 已保存，续接等待原任务，不再 dispatch。
 - `pending/unknown` 通知记录：停止发送并核对飞书，保留 ledger；安装器不会清空它。
 
-本地非敏感进度在 `.codex-reset-setup/state.local.json`。进程结束会释放短期凭据引用；Python 不承诺内存取证级擦除。没有凭据文件可迁移，跨进程续接时可能需要重新官方授权或安全输入已创建应用的信息。
+本地非敏感进度在 `.codex-reset-setup/state.local.json`。进程结束会释放短期凭据引用；Python 不承诺内存取证级擦除。没有凭据文件可迁移，跨进程续接时可能需要重新官方授权或以公开 App ID 重新官方扫码复用。
 
 ## 验证范围
 
 自动化已验证：离线和模拟协议、仓库/权限/身份绑定、状态/防重、workflow 结果关联、打包隔离、依赖预检和固定错误脱敏。
 
-用户待验收：真实 GitHub/飞书账号授权、组织策略与官方 API 可用性、真实 Secrets 写入、飞书权限与发布状态、实际预测提醒送达及调度持续运行。我们没有代你执行这些动作。
+用户待验收：真实 GitHub/飞书账号授权、组织策略与官方 API 可用性、真实 Secrets 写入、飞书权限与发布状态、一次安装测试真实送达、本人确认开启及调度持续运行。我们没有代你执行这些动作。

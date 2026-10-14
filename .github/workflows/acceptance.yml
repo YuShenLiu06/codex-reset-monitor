@@ -1,0 +1,44 @@
+name: User-authorized installation test
+run-name: ${{ inputs.installation_id && format('install-{0}', inputs.installation_id) || 'Installation test' }}
+on:
+  workflow_dispatch:
+    inputs:
+      installation_id:
+        type: string
+        required: true
+      test_request_id:
+        type: string
+        required: true
+      confirm_test_send:
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: codex-reset-monitor
+  cancel-in-progress: false
+jobs:
+  acceptance:
+    if: inputs.confirm_test_send && vars.MONITOR_ENABLED != 'true' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Explicit test with durable reservation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MONITOR_ENABLED: ${{ vars.MONITOR_ENABLED }}
+          TEST_REQUEST_ID: ${{ inputs.test_request_id }}
+          FEISHU_NOTIFY_BACKEND: ${{ secrets.FEISHU_NOTIFY_BACKEND }}
+          FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+          FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+          FEISHU_SELF_OPEN_ID: ${{ secrets.FEISHU_SELF_OPEN_ID }}
+          FEISHU_APP_READINESS: ${{ secrets.FEISHU_APP_READINESS }}
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          FEISHU_SIGNING_SECRET: ${{ secrets.FEISHU_SIGNING_SECRET }}
+        run: python3 acceptance.py
