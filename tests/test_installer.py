@@ -214,6 +214,16 @@ class InstallerTest(unittest.TestCase):
         self.assertEqual(len(self.api.runs),3)
         self.assertIsNone(self.api.token)
 
+    def test_gui_buttons_use_same_validated_installation_core(self):
+        ui=Mock();ui.recover.return_value={};ui.ask.side_effect=['reuse','SEND_TEST']
+        with patch.object(cli,'device_authorize',return_value=self.api.token),patch.object(cli,'GitHubAPI',return_value=self.api),patch.object(cli,'manifest',return_value=self.api.manifest),patch.object(cli,'collect_feishu',return_value=self.values),patch.object(c,'upload_secrets'),patch('builtins.input',side_effect=AssertionError('GUI must not read terminal')):
+            result=cli.main(['--run','--client-id','Iv1.UnitPublicID','--app-slug','unit-installer','--target',TARGET,'--progress',str(self.path)],ui=ui)
+        self.assertEqual(result,0);self.assertEqual(self.api.variables['MONITOR_ENABLED'],'true')
+        self.assertEqual(len(self.api.runs),3)
+        confirmations=[call.args[1] for call in ui.confirm.call_args_list]
+        self.assertIn('ENABLE '+TARGET,confirmations)
+        self.assertTrue(any(value.startswith('RECEIVED ') for value in confirmations))
+
     def test_default_feishu_new_uses_official_scan_without_manual_secret(self):
         import feishu_app
         credentials=feishu_app.AppCredentials('cli_'+'x'*16,'synthetic-secret','ou_'+'y'*24)

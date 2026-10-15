@@ -63,3 +63,25 @@ class RegistrationTest(unittest.TestCase):
         self.assertIn('阶段=public-app-config',stream.getvalue())
         self.assertIn('类型=OSError',stream.getvalue())
         self.assertNotIn('PRIVATE_UPSTREAM_PAYLOAD',stream.getvalue())
+
+class AppAddressNormalizationTest(unittest.TestCase):
+    def test_user_reported_personal_settings_url_and_public_forms(self):
+        for value in ('https://github.com/settings/apps/codex-reset-installer',
+                      'https://github.com/settings/apps/codex-reset-installer/',
+                      'https://github.com/apps/codex-reset-installer',
+                      'codex-reset-installer'):
+            self.assertEqual(r.public_config('Iv1.PublicID',value)['app_slug'],'codex-reset-installer')
+    def test_only_exact_allowed_paths_without_auth_query_or_fragment(self):
+        for value in ('https://github.com/settings/apps/',
+                      'https://github.com/settings/apps/demo/permissions',
+                      'https://github.com/settings/apps/demo?code=private',
+                      'https://github.com/settings/apps/demo#private',
+                      'https://github.com/settings/apps/%64emo',
+                      'https://github.com/user/demo',
+                      'https://github.com/organizations/team/settings/apps/demo',
+                      'https://github.com/settings/apps/a/../demo',
+                      'https://github.com.evil/settings/apps/demo',
+                      'https://user@github.com/settings/apps/demo',
+                      'https://github.com:443/settings/apps/demo',
+                      'http://github.com/settings/apps/demo'):
+            with self.subTest(value=value),self.assertRaises(SetupError):r.public_config('Iv1.PublicID',value)
