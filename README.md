@@ -22,9 +22,16 @@
 
 ## 怎么下载／开始
 
-**[下载 Mac Apple 芯片测试版（ZIP）](https://github.com/YuShenLiu06/codex-reset-monitor/releases/download/v0.1.3-preview.3/codex-reset-installer-macos-arm64-preview.zip)**。版本说明见[发布页](https://github.com/YuShenLiu06/codex-reset-monitor/releases/tag/v0.1.3-preview.3)。GitHub 的「Download ZIP」是源码，不是安装包。
+选择适合自己电脑的测试版：
 
-不用额外安装工具，已复用现有连接应用，首次无需再次创建。目前供该应用所有者试用，其他账号能否安装尚未核实。完整安装流程仍在验证；系统可能阻止打开，遇到拦截请暂停。Intel Mac、Windows 暂无安装包。
+| 你的电脑 | 下载 |
+|---|---|
+| Mac（Apple 芯片） | [Mac 测试版 ZIP](https://github.com/YuShenLiu06/codex-reset-monitor/releases/download/v0.1.4-preview.1/codex-reset-installer-macos-arm64-preview.zip) |
+| Windows（64 位） | [Windows 测试版 ZIP](https://github.com/YuShenLiu06/codex-reset-monitor/releases/download/v0.1.4-preview.1/codex-reset-installer-windows-x64-preview.zip) |
+
+不用额外安装工具，也不用自己创建连接应用。可以邀请他人试用并反馈，完整真实账号流程仍在验证。系统可能阻止打开，遇到拦截请暂停，保留系统安全保护。版本变化见[发布页](https://github.com/YuShenLiu06/codex-reset-monitor/releases/tag/v0.1.4-preview.1)。
+
+**先完整解压**：Mac 双击「Codex 提醒设置」；Windows 双击文件夹内的 `CodexResetInstaller.exe`，不要单独移动它。GitHub 的「Download ZIP」是源码，不是安装包。
 
 开始方式：
 
@@ -35,7 +42,7 @@ flowchart TD
     C -->|收到安装测试消息后| D[④ 确认收到，再开启提醒]
 ```
 
-测试时按[本人验收清单](docs/user-acceptance.md)核对。这个包还没有经过 Apple 公证，不要把测试版当正式版转发。
+测试时按[本人验收清单](docs/user-acceptance.md)核对；Windows 也可看[三步开始](docs/windows-preview.md)。这是测试版，不要当正式版转发。
 
 <a id="use"></a>
 
@@ -59,8 +66,8 @@ flowchart TD
 
 | 问题 | 下一步 |
 |---|---|
-| 下载后找不到 .app | 解压上方预览版 ZIP；不要把源码 ZIP 当安装包。 |
-| Mac 拦住测试包 | 暂停，向维护者确认包的来源与状态；不要关闭系统安全保护。 |
+| 下载后找不到程序 | 完整解压上方对应 ZIP；不要把源码 ZIP 当安装包。 |
+| 系统拦住测试包 | 暂停并反馈系统提示，保留安全保护。 |
 | 窗口要求填应用编号或地址 | 可能用了旧包或自行构建的包；先核对下载版本，不要反复创建应用。 |
 | 授权或权限检查没通过 | 按窗口提示核对目标账号、仓库和权限；详细见[验收与恢复](docs/user-acceptance.md#失败恢复)。 |
 | 测试消息没收到／结果不明 | 先停下，核对飞书和 Actions 记录，不要反复点击发送。 |

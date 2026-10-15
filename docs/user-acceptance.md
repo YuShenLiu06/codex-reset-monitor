@@ -2,12 +2,12 @@
 
 ## 先确认前置条件
 
-当前提供 macOS arm64 开发预览包，下载见[首页](../README.md#start)；未完成 Apple 公证，完整真实流程仍待按本清单验收。已有本人反馈安装跑通，不等于公开发行验收完成。
+当前提供 Mac Apple 芯片与 Windows 64 位开发预览包，下载见[首页](../README.md#start)。Mac 未完成 Apple 公证，Windows 尚未签名；完整真实账号流程仍待按本清单验收。离线模拟或本人反馈安装跑通，不等于多账号发行验收完成。
 
 两平台包已按所有者授权内置 `codex-reset-installer` 的[公开 Client ID / slug](../macos/public-app.json)，不含凭据，无需重复注册。公开 API 已核对标识及五项最小权限；跨账号完整安装、Device Flow 设置仍待实际验收。程序仍核验实际安装范围与权限。缺配置的开发包才进入初始化，见[维护者配置](github-app-maintainer.md)。
 
 - **窗口测试包**：内置 Python / gh，不要求另行安装。仅使用维护者提供且来源可核验的测试包。
-- **命令行安装器**：支持 macOS/Linux，需要 Python 3.10+ 和官方 GitHub CLI。`--plan` 只预览，不授权。缺依赖或公开 App 配置时，在授权前停止。
+- **命令行安装器**：支持 macOS/Linux/Windows，需要 Python 3.10+ 和官方 GitHub CLI。`--plan` 只预览，不授权。缺依赖或公开 App 配置时，在授权前停止。
 
 以下记录授权与验收要点。窗口测试版按窗口操作；大写确认词及命令参数用于命令行入口。
 
