@@ -14,6 +14,8 @@ def run(mode,gui,args):
     from installer.github_api import SetupError
     from feishu_app import AppCredentials
     from monitor import empty_state
+    from reset_events import identity
+    assert identity("bundled-check").startswith("reset:")
     target='ExampleUser/codex-reset-monitor';sha='a'*40
     contents={name:b'offline reviewed fixture\n' for name in core.TRUSTED_FILES}
     contents['project.json']=json.dumps({'project_id':core.PROJECT_ID}).encode()

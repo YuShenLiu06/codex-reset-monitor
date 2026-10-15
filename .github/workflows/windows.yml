@@ -6,6 +6,9 @@ on:
     paths:
       - 'windows/**'
       - 'installer/**'
+      - 'monitor.py'
+      - 'reset_events.py'
+      - 'tests/test_reset_events.py'
       - 'scripts/*windows*'
       - 'tests/test_windows.py'
       - '.github/workflows/windows.yml'

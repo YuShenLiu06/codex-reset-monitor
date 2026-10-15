@@ -32,7 +32,7 @@
    python3 scripts/deploy.py --enable
    ```
 
-   脚本检查两项 Secret 名称和有效状态，再设置仓库变量 `MONITOR_ENABLED=true`。每小时 UTC 第 17 分钟唤起；没有 Secret、不满足健康/阈值或有未解决发送时不会发消息。开启后可以手动 `dry_run=false` 做一次真实检查，仍只有满足阈值才发送，**不会为了测试捏造预测提醒**。到时需在飞书群确认实际消息；仅看到 workflow 成功不证明收件人已阅读。
+   脚本检查两项 Secret 名称和有效状态，再设置仓库变量 `MONITOR_ENABLED=true`。每小时 UTC 第 17 分钟唤起；没有 Secret、源数据不健康或同类发送结果未解决时不会发消息。预测要求概率超过 80%；新公共重置记录不受该阈值限制。开启后可以手动 `dry_run=false` 做一次真实检查，仍只有符合对应提醒条件才发送，**不会为了测试捏造预测提醒**。到时需在飞书群确认实际消息；仅看到 workflow 成功不证明收件人已阅读。
 
 停止：`python3 scripts/deploy.py --disable`。此命令关闭后续发送门控；已在执行的任务需在 Actions 页面取消或等待结束。保留所有去重记录。更换凭据前先关闭并等待现有任务结束，再运行 `--configure`。
 
@@ -56,9 +56,9 @@
 - 只接受 `public-v1`，`dataHealth.overall == "ok"`、`stale is False`，`supabaseSignals` / `openAIStatus` 均为 `ok`。
 - `checkedAt` 和 `dataHealth.generatedAt` 默认不超过两小时，不超前本机 UTC 五分钟；时间必须带时区，通知显示 UTC+08:00。`lastRandomResetAt` 必须有效且不能在未来。
 - 拒绝非数值/布尔概率、NaN/Inf、越界值、重复 JSON key、错误 schema、降级/过期数据。固定 HTTPS 源、TLS 校验、无跳转/自动重试，15 秒 socket timeout，源响应最多 512 KiB，读取循环目标总时限 30 秒（阻塞一次读最多再占一个 timeout）。
-- 事件 key 用固定源 + `24h` + 标准化 `lastRandomResetAt`；同一重置周期最多一次，新周期也遵守默认 24 小时冷却。`checkedAt` 刷新不能成为新事件。
+- 预测事件 key 用固定源 + `24h` + 标准化 `lastRandomResetAt`；同一重置周期最多一次，新周期也遵守默认 24 小时冷却。`checkedAt` 刷新不能成为新事件。
 - 状态先从远端读出，条件写入 `pending` 成功后才 POST 飞书；`code` 为整数 0 才记录成功回执。HTTP 200、旧 `StatusCode`、超时、业务错误或无法确认的结果均不触发自动重试。Webhook 没有本项目可依赖的远端幂等键，成功回执也没有消息 ID，因此使用 `webhook_code_0`，不伪造消息 ID。
-- 发送后状态写入失败时，远端 `pending` 会阻止下一 runner 重发；写入已成功但回应丢失也停止发送。任意 `pending/unknown` 都暂停自动通知。这是保守的**至多一次尝试**，可能漏送，不承诺严格恰好一次交付。
+- 发送后状态写入失败时，远端 `pending` 会阻止下一 runner 重发；写入已成功但回应丢失也停止发送。同类 `pending/unknown` 暂停该类自动通知；安装测试的未解决结果阻止两类通知。这是保守的**至多一次尝试**，可能漏送，不承诺严格恰好一次交付。
 - 状态损坏、分支缺失、GitHub 403/404/409、网络错误或超过 1 MiB 均停止；监测过程绝不自动创建空状态。首次初始化只由部署脚本显式执行。
 
 ```mermaid
@@ -72,7 +72,19 @@ flowchart LR
   U -->|下次运行| X
 ```
 
-处理未解决状态：先关闭门控、等待/停止所有实例，查飞书群记录并备份状态。查到消息可将记录标为 `sent`，填实际 `sent_at` / `last_sent_at` 和 `receipt: "manually_verified"`；确定未送达且选择放弃可标为 `abandoned`，事件仍不重发；无法确认则保留。使用正常条件更新提交到状态分支，不能强推、删分支或回滚状态后重发。没有自动清空/重试命令。
+处理未解决状态：先关闭门控、等待/停止所有实例，查飞书群记录并备份状态。查到消息可将记录标为 `sent`，填实际 `sent_at`（预测另更新 `last_sent_at`）和 `receipt: "manually_verified"`；确定未送达且选择放弃可标为 `abandoned`，事件仍不重发；无法确认则保留。使用正常条件更新提交到状态分支，不能强推、删分支或回滚状态后重发。没有自动清空/重试命令。
+
+## 公共重置记录提醒
+
+只使用同一个 `public-v1` 健康响应中的 `viewModel.recentHistory`：`recordKind=confirmed_global`、`sourceKind=direct_post`，且引用是固定允许的官方 X 账号帖子。依据[上游历史语义](https://github.com/gussuri/codex-reset-observatory/blob/main/docs/reset-history-normalization.md)，预告、备用重置卡配发、常规重置和参考记录不等于这类公共重置。概率下降、窗口滚动和 `lastRandomResetAt` 变化也不能单独触发事件提醒。
+
+- 沿用每小时检查、当前飞书后端和收件人、`MONITOR_ENABLED` 门控；纯 Python 规则，不调用大模型。
+- 首次有有效历史时，在原状态中增加独立的 `reset_events` 账本，将现有记录设为基线。以后只考虑比已见事件时间更新、距现在不超过 24 小时的新记录。离线超过这个范围可能漏报，不追补旧历史。
+- 使用上游稳定 key 去重，并按引用链接识别改名别名；保留首次记录时间。改标题、修正时间、历史回填、源快照回滚或同一检查时间内改写历史均不作为新事件。未来时间暂不视为完成；待后续健康快照确认。
+- 先持久保存未发送队列，再将单条事件条件写入 `pending`，得到确认后才发送。崩溃、超时、回执不明或最终写入失败保留 `pending/unknown`，不自动重试。同类后续事件等待人工核对，预测账本及 24 小时冷却独立保留。
+- 旧状态和安装验收记录原样保留，不清空、不重建。队列记录被来源删除或修改时不发送；超过 24 小时标为过期。账本最多 1,000 条、整体最多 1 MiB，达到限制停止并要求人工归档，不能直接删历史以重发。
+
+消息明确写“数据源记录到公共重置事件”。时间精度为 `announcement_fallback` 时标作完成公告时间，不能当作精确执行时间；无论精度如何，都不证明本人账户额度已恢复。
 
 ## 本地运行与服务器备选
 

@@ -109,10 +109,10 @@ def build_exe(package,work,output,commit):
     resource=work/'bootstrap.rc'
     resource.write_text('101 ICON "'+(root/'windows/app.ico').as_posix()+'"\n'
         '1 24 "'+(root/'windows/app.manifest').as_posix()+'"\n'
-        '1 VERSIONINFO\nFILEVERSION 0,1,5,0\nPRODUCTVERSION 0,1,5,0\nFILEOS 0x40004\nFILETYPE 1\nBEGIN\n'
+        '1 VERSIONINFO\nFILEVERSION 0,1,6,0\nPRODUCTVERSION 0,1,6,0\nFILEOS 0x40004\nFILETYPE 1\nBEGIN\n'
         'BLOCK "StringFileInfo" BEGIN BLOCK "040904b0" BEGIN\n'
-        'VALUE "FileDescription", "Codex Reset Installer Preview"\nVALUE "FileVersion", "0.1.5-preview.1"\n'
-        'VALUE "ProductName", "Codex Reset Installer"\nVALUE "ProductVersion", "0.1.5-preview.1"\n'
+        'VALUE "FileDescription", "Codex Reset Installer Preview"\nVALUE "FileVersion", "0.1.6-preview.1"\n'
+        'VALUE "ProductName", "Codex Reset Installer"\nVALUE "ProductVersion", "0.1.6-preview.1"\n'
         'END END\nBLOCK "VarFileInfo" BEGIN VALUE "Translation", 0x409, 1200 END\nEND\n')
     vswhere=Path(os.environ['ProgramFiles(x86)'])/'Microsoft Visual Studio/Installer/vswhere.exe'
     installation=subprocess.check_output([str(vswhere),'-latest','-products','*','-requires','Microsoft.VisualStudio.Component.VC.Tools.x86.x64','-property','installationPath'],text=True).strip()

@@ -1,0 +1,7 @@
+{
+  "url": "https://codex.gussuriworks.com/api/current",
+  "observed_checked_at": "2026-10-15T06:40:01.539Z",
+  "full_capture_sha256": "9b760e7f4cad423d569b4fdfd4434c3da633dc0c82922a551fc649c6054ac696",
+  "projection": "Actual later capture, same projection as before fixture. New confirmed_global record at 06:28:13Z is announcement_fallback, not exact execution/account confirmation.",
+  "source_semantics": "https://github.com/gussuri/codex-reset-observatory/blob/main/docs/reset-history-normalization.md"
+}

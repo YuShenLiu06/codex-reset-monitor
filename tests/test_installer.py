@@ -380,6 +380,8 @@ class InstallerTest(unittest.TestCase):
             names=archive.namelist()
             self.assertFalse(any('runtime' in name or '.git/' in name or 'config.json' in name for name in names))
             self.assertIn('installer/trusted_files.json',names)
+            self.assertIn('reset_events.py',names)
+            self.assertIn('reset_events.py',json.loads(archive.read('installer/trusted_files.json')))
         with zipfile.ZipFile(out/'codex-reset-install-skill.zip') as archive:
             self.assertEqual(archive.read('codex-reset-install/assets/codex-reset-install.pyz'),(out/'codex-reset-install.pyz').read_bytes())
         environment={k:os.environ[k] for k in ('SystemRoot','SYSTEMROOT','WINDIR','TEMP','TMP') if k in os.environ}

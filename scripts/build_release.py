@@ -13,7 +13,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from installer.core import TRUSTED_FILES, expected_manifest
 
 ROOT=Path(__file__).resolve().parents[1]
-BUNDLE_FILES=('acceptance.py','monitor.py','github_state.py','feishu_app.py','bootstrap_state.py','project.json',
+BUNDLE_FILES=('reset_events.py','acceptance.py','monitor.py','github_state.py','feishu_app.py','bootstrap_state.py','project.json',
               'installer/resources.py','installer/registration.py','installer/__init__.py','installer/core.py','installer/github_api.py','installer/cli.py')
 
 
