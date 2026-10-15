@@ -1,4 +1,10 @@
 {
+  "acceptance_tests": {
+    "e12eeee69c3764020a47e86d1ca3f2db": {
+      "attempted_at": "2026-10-15T03:10:07.632036Z",
+      "status": "pending"
+    }
+  },
   "alerts": {},
   "last_sent_at": null,
   "version": 1
