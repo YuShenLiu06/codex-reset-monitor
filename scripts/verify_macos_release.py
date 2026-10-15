@@ -29,6 +29,9 @@ def validate_public(value):
 
 def inspect_archive(archive,source_sha,public=None):
     if public is not None:validate_public(public)
+    runtime=json.loads((Path(__file__).resolve().parents[1]/'macos/python-runtime-hashes.json').read_text())
+    if runtime.get('python')!='3.13.16':raise ValueError('Unexpected reviewed runtime version')
+    vendor_prefix=APP+'/Contents/Resources/worker/'
     with zipfile.ZipFile(archive) as bundle:
         names=bundle.namelist()
         if len(names)!=len(set(names)):raise ValueError('Duplicate archive paths')
@@ -53,7 +56,12 @@ def inspect_archive(archive,source_sha,public=None):
                         parts.pop()
                     elif part!='.':parts.append(part)
             elif CREDENTIAL.search(data):raise ValueError('Credential-shaped data in package')
-            if re.search(rb'/Users/(?!runner/|Shared/)[A-Za-z0-9_.-]+/',data):raise ValueError('Personal local path in package')
+            if re.search(rb'/Users/(?!runner/|Shared/)[A-Za-z0-9_.-]+/',data):
+                relative=path.as_posix().removeprefix(vendor_prefix)
+                # Official CPython binaries include upstream release-builder paths.
+                # Exempt only exact reviewed native-file hashes, never arbitrary paths.
+                if not path.as_posix().startswith(vendor_prefix) or runtime['files'].get(relative)!=hashlib.sha256(data).hexdigest():
+                    raise ValueError('Unreviewed personal/build path in package file: '+path.as_posix())
         metadata=json.loads(bundle.read(APP+'/Contents/Resources/BUILD-INFO.json'))
         if (metadata.get('source_commit')!=source_sha or metadata.get('architecture')!='arm64'
             or metadata.get('public_app_bundled') is not (public is not None) or metadata.get('public_app')!=public):

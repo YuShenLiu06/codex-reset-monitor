@@ -32,6 +32,8 @@
 
 Actions 从干净 checkout 构建，通过 `--public-config macos/public-app.json` 读取已提交并可审查的公开标识，不读取个人机器。App 内加入生成的可信文件清单和经所有者授权的[公开配置](../macos/public-app.json)，只允许 `version/client_id/app_slug` 三项；拒绝 Secret、私钥、token、其他配置、本地进度与账号截图。扫描用于拦截常见泄漏，不能证明任意形式的秘密都不存在。
 
+官方 CPython 原生运行时含上游发布者的编译路径。仅对[逐文件固定 SHA256](../macos/python-runtime-hashes.json)完全匹配的官方二进制保留该公开元数据，项目数据与其他文件不豁免。运行时升级或字节变化会要求重新审查。
+
 当前包复用所有者明确授权的 `codex-reset-installer`，首次无需重复创建 App。只读公开 API 返回 404，现有 CLI 授权不能读取 App 安装记录；Any account、Device Flow 和当前注册权限尚未核实，所以本包定位为 **App 所有者预览**，不宣称所有账号可安装。实际使用仍核验 actions/actions_variables/secrets:write、contents/metadata:read，不扩权。更改 App 可安装范围需所有者另行确认。缺配置的开发构建仍保留初始化引导，见[注册与权限说明](github-app-maintainer.md)。
 
 包只有 ad-hoc 签名，没有 Developer ID 和 Apple 公证。系统可能拦截；不要关闭 Gatekeeper。构建、解包和离线 worker smoke 不能替代真实 GitHub/飞书账号的[完整验收](user-acceptance.md)。
