@@ -1,0 +1,48 @@
+{
+  "sdk": {
+    "version": "10.0.402",
+    "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.402/dotnet-sdk-10.0.402-win-x64.zip",
+    "sha512": "ae4fd528cb7e9f6af6aaf7de36715a69f761f183744f1bb3025d19f5a92447090ec561410e46266c1d10a63781ed6f3de771760bc76c876d87daabc367b898cd"
+  },
+  "gh": {
+    "version": "2.95.0",
+    "url": "https://github.com/cli/cli/releases/download/v2.95.0/gh_2.95.0_windows_amd64.zip",
+    "sha256": "19a7154161ada9cfaa9e57edb752ecc679b75c391a62e4f7b586eea1df30b5bb"
+  },
+  "python_license": {
+    "url": "https://raw.githubusercontent.com/python/cpython/v3.13.16/LICENSE",
+    "sha256": "78b12c3a81360b357002334f0e70ea0e92eebf7a9b358805c03c48484945f3bb"
+  },
+  "nuget": [
+    {
+      "name": "Microsoft.NETCore.App.Runtime.win-x64",
+      "version": "10.0.13",
+      "url": "https://api.nuget.org/v3-flatcontainer/microsoft.netcore.app.runtime.win-x64/10.0.13/microsoft.netcore.app.runtime.win-x64.10.0.13.nupkg",
+      "sha512": "e79b2ea110087fa7558ce74f847c481250dad86068a95648ef46c6e33abe7f6a4741b195eb20efcedb17762b78a7173711aefd5f429fa3bf0a9dc8edf4d6ae21"
+    },
+    {
+      "name": "Microsoft.NETCore.App.Host.win-x64",
+      "version": "10.0.13",
+      "url": "https://api.nuget.org/v3-flatcontainer/microsoft.netcore.app.host.win-x64/10.0.13/microsoft.netcore.app.host.win-x64.10.0.13.nupkg",
+      "sha512": "a4eb27d1c061ad9a72a658a2f534c7ba2c5bf70d0f727419cc9c5aebbcfbff5043746724f404d455798ef1452b4a71c8eb7f917a978c811fccc7b8e3578f28e8"
+    },
+    {
+      "name": "Microsoft.WindowsDesktop.App.Runtime.win-x64",
+      "version": "10.0.13",
+      "url": "https://api.nuget.org/v3-flatcontainer/microsoft.windowsdesktop.app.runtime.win-x64/10.0.13/microsoft.windowsdesktop.app.runtime.win-x64.10.0.13.nupkg",
+      "sha512": "83cbf3dab59e48d62298535852a5d4cbbc9590a24e432732f64b0db79f75db68affb2ed8e4aad1fcfc284824205cedca0496dfe2e11d2b42ee0abf0e695c1073"
+    },
+    {
+      "name": "Microsoft.WindowsDesktop.App.Ref",
+      "version": "10.0.13",
+      "url": "https://api.nuget.org/v3-flatcontainer/microsoft.windowsdesktop.app.ref/10.0.13/microsoft.windowsdesktop.app.ref.10.0.13.nupkg",
+      "sha512": "6cbdf740a7eb8658dcaedd5d62f5a2c1114da963748da70dc127957504e711309b3d79ee73b00c7cc36a4ac6252727dbcc6131db950745bfe64c192645e872f9"
+    },
+    {
+      "name": "Microsoft.AspNetCore.App.Runtime.win-x64",
+      "version": "10.0.13",
+      "url": "https://api.nuget.org/v3-flatcontainer/microsoft.aspnetcore.app.runtime.win-x64/10.0.13/microsoft.aspnetcore.app.runtime.win-x64.10.0.13.nupkg",
+      "sha512": "fc258066d71180f2c746c1e6da9eed07f2c66712dde787db5f51fa5ce248e17175dd3ae44347925c25bbd321c4f6947a86c65c97a6bedd71e8e76472b6479ead"
+    }
+  ]
+}

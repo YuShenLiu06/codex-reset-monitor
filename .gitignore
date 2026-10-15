@@ -17,3 +17,7 @@ lark-home/
 *.key
 
 .codex-reset-setup/
+
+windows/bin/
+windows/obj/
+windows/app.ico

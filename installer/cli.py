@@ -91,7 +91,7 @@ def main(argv=None,ui=None):
     if args.plan or (not args.run and not interactive):return 0
     api=None;values=None;token=None;stage='preflight'
     try:
-        if sys.platform not in ('darwin','linux'):raise SetupError('PLATFORM_UNSUPPORTED','live installer currently supports macOS/Linux only')
+        if sys.platform not in ('darwin','linux','win32'):raise SetupError('PLATFORM_UNSUPPORTED','use the macOS, Linux or Windows installer')
         if ui is None and (not sys.stdin.isatty() or not sys.stdout.isatty()):raise SetupError('INTERACTIVE_USER_TERMINAL_REQUIRED')
         if not args.run and ask('开始逐步安装？[Y/n]：').strip().lower() not in ('','y','yes'):
             emit('stopped','已取消，未开始配置。');return 0
@@ -102,7 +102,7 @@ def main(argv=None,ui=None):
         stage='repository-target'
         target=args.target
         if target is None and args.progress.exists():
-            try:target=json.loads(args.progress.read_text())['target']
+            try:target=json.loads(args.progress.read_text(encoding='utf-8'))['target']
             except Exception:raise SetupError('INVALID_RESUME_STATE') from None
             emit('target','续接已保存目标：'+str(target))
         target=target or ask('目标仓库 OWNER/REPO：').strip()

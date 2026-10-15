@@ -1,5 +1,6 @@
 """Private stdin/stdout UI protocol; no local web server, no credential logs."""
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -191,9 +192,17 @@ class GUI:
         if text or links:self.send({'type':'notice','stage':stage,'title':TITLES.get(stage,'继续设置'),'text':text,'links':links,'user_code':user_code})
 
 
+def progress_directory():
+    if sys.platform=='win32':
+        base=os.environ.get('LOCALAPPDATA')
+        if not base:raise SetupError('LOCAL_APP_DATA_REQUIRED')
+        return Path(base)/'Codex Reset Installer'
+    return Path.home()/'Library'/'Application Support'/'Codex Reset Installer'
+
+
 def main():
     from installer.cli import main as install
-    directory=Path.home()/'Library'/'Application Support'/'Codex Reset Installer'
+    directory=progress_directory()
     gui=GUI()
     code=install(['--progress',str(directory/'state.local.json'),'--public-config',str(directory/'app.local.json')],ui=gui)
     gui.send({'type':'done','code':code})

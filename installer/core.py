@@ -9,6 +9,7 @@ import re
 import shutil
 import secrets
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -34,6 +35,7 @@ def validate_target(target):
 def expected_manifest(root):
     root=Path(root)
     names=set(TRUSTED_FILES)
+    names.update(path.relative_to(root).as_posix() for path in (root/'.github/workflows').glob('*.y*ml'))
     for path in root.rglob('*.py'):
         relative=path.relative_to(root)
         if not set(relative.parts)&{'runtime','.git','__pycache__','.codex-reset-setup'}:
@@ -215,13 +217,16 @@ def upload_secrets(token,target,values,runner=None):
     # An empty temporary HOME/config isolates existing login files. Only CLI
     # configuration may touch this directory; secrets and token are stdin/env.
     with tempfile.TemporaryDirectory(prefix='codex-reset-gh-') as directory:
-        environment={k:os.environ[k] for k in ('PATH','LANG','LC_ALL','SYSTEMROOT') if k in os.environ}
+        environment={k:os.environ[k] for k in ('PATH','LANG','LC_ALL','SYSTEMROOT','SystemRoot','WINDIR','TEMP','TMP') if k in os.environ}
         environment.update(GH_TOKEN=token,GH_HOST='github.com',GH_PROMPT_DISABLED='1',
-                           GH_CONFIG_DIR=directory,HOME=directory,GH_NO_UPDATE_NOTIFIER='1')
+                           GH_CONFIG_DIR=directory,HOME=directory,USERPROFILE=directory,
+                           APPDATA=directory,LOCALAPPDATA=directory,GH_NO_UPDATE_NOTIFIER='1',
+                           GH_NO_EXTENSION_UPDATE_NOTIFIER='1',GH_PAGER='cat')
+        options={'creationflags':0x08000000} if sys.platform=='win32' else {}
         for name in APP_SECRET_NAMES:
             try:
                 result=runner([executable,'secret','set',name,'--repo',target,'--app','actions'],input=values[name].encode(),
-                    stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=60,check=False,env=environment)
+                    stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=60,check=False,env=environment,**options)
                 if result.returncode:raise ValueError()
             except Exception:raise SetupError('SECRET_UPLOAD_UNCONFIRMED','partial upload possible; inspect names and reuse same app, gate stays disabled') from None
 
