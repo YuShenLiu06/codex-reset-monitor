@@ -1,4 +1,4 @@
-name: macOS preview release
+name: Mac and Windows preview release
 run-name: Preview ${{ inputs.version || github.ref_name }}
 on:
   push:
@@ -60,7 +60,7 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/build-venv"
           "$RUNNER_TEMP/build-venv/bin/python" -m pip install --require-hashes --only-binary=:all: -r macos/build-requirements.txt
           python3 scripts/release_dependencies.py "$RUNNER_TEMP/release-deps"
-      - name: Build self-contained owner preview with reviewed public App fields
+      - name: Build self-contained Mac preview with reviewed public App fields
         run: |
           bundle_version="${RELEASE_TAG#v}"
           bundle_version="${bundle_version%%-preview.*}"
@@ -81,8 +81,13 @@ jobs:
           if-no-files-found: error
           retention-days: 3
           compression-level: 0
+  windows:
+    needs: test
+    uses: ./.github/workflows/windows.yml
+    permissions:
+      contents: read
   publish:
-    needs: build
+    needs: [build, windows]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -95,7 +100,11 @@ jobs:
         with:
           name: macos-arm64-preview
           path: runtime/release-assets
-      - name: Publish verified assets as a prerelease
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: windows-x64-preview
+          path: runtime/windows-release
+      - name: Verify common source and publish both platforms as a prerelease
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/publish_preview.py runtime/release-assets
+        run: python3 scripts/publish_preview.py runtime/release-assets runtime/windows-release

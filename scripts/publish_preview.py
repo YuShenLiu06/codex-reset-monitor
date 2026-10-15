@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Publish only a new preview release after checking the build identity/hash."""
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -8,24 +7,19 @@ import re
 import subprocess
 import sys
 import tempfile
-from verify_macos_release import validate_public
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from scripts.verify_macos_release import validate_public
+from scripts.release_assets import assemble, digest, MAC_ZIP, WINDOWS_ZIP
 
-ARCHIVE='codex-reset-installer-macos-arm64-preview.zip'
-
-
-def main(directory):
-    directory=Path(directory)
+def main(mac_directory,windows_directory):
     tag=os.environ['RELEASE_TAG'];sha=os.environ['GITHUB_SHA'];repository=os.environ['GITHUB_REPOSITORY']
     if not re.fullmatch(r'v\d+\.\d+\.\d+-preview\.\d+',tag) or not re.fullmatch(r'[0-9a-f]{40}',sha):
         raise SystemExit('Invalid preview identity')
     if repository!='YuShenLiu06/codex-reset-monitor':raise SystemExit('Unexpected publishing repository')
-    checksum=hashlib.sha256((directory/ARCHIVE).read_bytes()).hexdigest()+'  '+ARCHIVE+'\n'
-    if (directory/'SHA256SUMS').read_text()!=checksum:raise SystemExit('Downloaded artifact checksum mismatch')
-    report=json.loads((directory/'BUILD-CHECKS.json').read_text())
     public=validate_public(json.loads(Path('macos/public-app.json').read_text()))
-    if (report.get('source_commit')!=sha or report.get('public_app_bundled') is not True
-        or report.get('public_app')!=public or len(report.get('checks',[]))!=8):
-        raise SystemExit('Missing verified build identity')
+    run_url=f'https://github.com/{repository}/actions/runs/{os.environ["GITHUB_RUN_ID"]}'
+    assets=assemble(mac_directory,windows_directory,Path('runtime/publish-assets'),sha,public,
+                    digest('assets/logo-v1.png'),run_url)
     # Refuse overwrites, including tags pointing to another source revision.
     releases=json.loads(subprocess.check_output(['gh','api','--paginate','--slurp',f'repos/{repository}/releases'],text=True))
     if any(release['tag_name']==tag for page in releases for release in page):raise SystemExit('Release already exists; use a new preview version')
@@ -39,29 +33,32 @@ def main(directory):
     elif '404' not in ref.stderr:raise SystemExit('Cannot verify release tag')
     # Each version supplies real user-facing changes; never recycle old claims.
     notes=Path('docs/release-notes',tag+'.md').read_text().strip()
-    if not notes or len(notes)>5000:raise SystemExit('Write concise version-specific user release notes')
+    if not notes or len(notes)>5000 or '{{DOWNLOADS}}' not in notes:
+        raise SystemExit('Write concise version-specific notes with a DOWNLOADS placeholder')
+    download=f'https://github.com/{repository}/releases/download/{tag}/'
+    notes=notes.replace('{{DOWNLOADS}}',f'- [Mac Apple 芯片（ZIP）]({download}{MAC_ZIP})\n- [Windows 64 位（ZIP）]({download}{WINDOWS_ZIP})')
     notes+=f'''
 
 <details>
 <summary>构建与校验详情（维护者）</summary>
 
-包内含 Python 与 GitHub CLI；仅有 ad-hoc 签名，没有 Developer ID 签名或 Apple 公证。
+两平台都内置 Python 与 GitHub CLI，Windows 另内置 .NET。Mac 只有 ad-hoc 签名，没有 Developer ID 签名或 Apple 公证；Windows 包尚未签名。
 
-经所有者授权，内置现有安装器 App 的公开 Client ID / slug，不含凭据。[公开配置](https://github.com/{repository}/blob/{sha}/macos/public-app.json)可审查。公开 API 查询返回 404，现有 CLI 授权不能读取 App 安装记录；Any account、Device Flow 和当前注册权限仍待本人核验。程序保留最小权限检查，不自动扩大安装范围。
+两平台复用同一份[公开 App 配置](https://github.com/{repository}/blob/{sha}/macos/public-app.json)，不含凭据。公开 API 已核对标识及五项最小权限；跨账号完整安装、Device Flow 设置仍待实际验收。程序保留实际权限检查，不自动扩大安装范围。
 
 [构建和解包检查](https://github.com/{repository}/actions/runs/{os.environ['GITHUB_RUN_ID']}) · [对应源码](https://github.com/{repository}/tree/{sha})
 
-下方 SHA256SUMS 用于核对完整性；BUILD-CHECKS.json 记录源码、架构和自动检查项。自动检查不代替真实账号验收。
+下方 SHA256SUMS 同时包含两份 ZIP；RELEASE-MANIFEST.json 记录两平台共同源码与资产哈希。BUILD-CHECKS.json / WINDOWS-BUILD-CHECKS.json 保留各平台实际运行证据；Windows 的完整、取消和恢复使用离线模拟服务，不代替真实账号或通知验收。
 
 </details>
 '''
     with tempfile.TemporaryDirectory() as temporary:
         body=Path(temporary)/'notes.md';body.write_text(notes)
         subprocess.run(['gh','release','create',tag,'--repo',repository,'--target',sha,
-                        '--title',tag+' · Mac Apple 芯片测试版','--notes-file',str(body),
+                        '--title',tag+' · Mac / Windows 测试版','--notes-file',str(body),
                         '--prerelease','--draft','--latest=false',
-                        str(directory/ARCHIVE),str(directory/'SHA256SUMS'),str(directory/'BUILD-CHECKS.json')],check=True)
+                        *map(str,assets)],check=True)
     subprocess.run(['gh','release','edit',tag,'--repo',repository,'--draft=false','--prerelease','--latest=false'],check=True)
 
 
-if __name__=='__main__':main(sys.argv[1])
+if __name__=='__main__':main(sys.argv[1],sys.argv[2])
