@@ -12,7 +12,7 @@ import subprocess
 import sys
 import zipfile
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from installer.core import expected_manifest
+from scripts.deployment_manifest import build_manifest
 from installer.registration import public_config, load as load_public_config
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -33,14 +33,16 @@ def write_app_archive(app,archive):
                 bundle.writestr(info,os.readlink(path).encode('utf-8'))
             else:bundle.write(path,name)
 
-def build(output,gh,public=None,version='0.1.3',python_license=None):
+def build(output,gh,public=None,version='0.1.3',python_license=None,deployment_commit=None,build_label=''):
     if sys.platform!='darwin' or os.uname().machine!='arm64':raise SystemExit('This local test build supports macOS arm64 only')
     output=Path(output).resolve();work=ROOT/'runtime/macos-build';work.mkdir(parents=True,exist_ok=True)
     gh=Path(gh).resolve()
     if not re.fullmatch(r'\d+\.\d+\.\d+',version):raise SystemExit('Expected a numeric three-part bundle version')
+    if not re.fullmatch(r'[A-Za-z0-9.-]{0,32}',build_label):raise SystemExit('Invalid public build label')
     gh_version=subprocess.run([str(gh),'--version'],capture_output=True,text=True,check=True).stdout.splitlines()[0]
     if gh_version!='gh version 2.95.0 (2026-06-17)':raise SystemExit('Expected reviewed gh 2.95.0; review and update before changing the bundled dependency')
-    manifest=work/'trusted_files.json';manifest.write_text(json.dumps(expected_manifest(ROOT),sort_keys=True))
+    reviewed,deployment_commit=build_manifest(ROOT,deployment_commit)
+    manifest=work/'trusted_files.json';manifest.write_text(json.dumps(reviewed,sort_keys=True))
     command=[sys.executable,'-m','PyInstaller','--noconfirm','--clean','--onedir','--target-arch','arm64','--name','reset-worker',
         '--distpath',work/'dist','--workpath',work/'pyinstaller','--specpath',work,
         '--paths',ROOT,'--add-data',str(manifest)+':installer',ROOT/'macos/worker.py']
@@ -74,7 +76,7 @@ def build(output,gh,public=None,version='0.1.3',python_license=None):
         if path.is_file():shutil.copy2(path,licenses/(name+'.txt'))
     if python_license is not None:shutil.copy2(python_license,licenses/'Python.txt')
     import importlib.metadata
-    for name in ('pyinstaller','altgraph','macholib','packaging','pyinstaller-hooks-contrib','setuptools'):
+    for name in ('truststore','pyinstaller','altgraph','macholib','packaging','pyinstaller-hooks-contrib','setuptools'):
         distribution=importlib.metadata.distribution(name)
         for item in distribution.files or []:
             if item.name.lower().startswith(('license','copying','notice')):
@@ -83,12 +85,12 @@ def build(output,gh,public=None,version='0.1.3',python_license=None):
                     destination=licenses/name/str(item);destination.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(path,destination)
     info={'CFBundleName':'Codex 提醒设置','CFBundleDisplayName':'Codex 提醒设置','CFBundleIdentifier':'com.yushen.codex-reset-installer.local',
           'CFBundleExecutable':'CodexResetInstaller','CFBundlePackageType':'APPL','CFBundleShortVersionString':version,
-          'CFBundleVersion':version,'CFBundleIconFile':'AppIcon.icns','LSMinimumSystemVersion':'13.0','NSHighResolutionCapable':True}
+          'CFBundleVersion':version,'CodexBuildLabel':build_label,'CFBundleIconFile':'AppIcon.icns','LSMinimumSystemVersion':'13.0','NSHighResolutionCapable':True}
     with (contents/'Info.plist').open('wb') as handle:plistlib.dump(info,handle)
     run(['swiftc','-parse-as-library','-target','arm64-apple-macos13.0','-module-cache-path',work/'module-cache',
          ROOT/'macos/InstallerApp.swift','-o',binary/'CodexResetInstaller'])
     (resources/'BUILD-INFO.json').write_text(json.dumps({'purpose':'preview; ad-hoc signature only; NOT notarized',
-        'architecture':'arm64','source_commit':subprocess.run(['git','rev-parse','HEAD'],cwd=ROOT,capture_output=True,text=True,check=True).stdout.strip(),'python':sys.version.split()[0],'gh':gh_version,'public_app_bundled':public is not None,
+        'architecture':'arm64','source_commit':subprocess.run(['git','rev-parse','HEAD'],cwd=ROOT,capture_output=True,text=True,check=True).stdout.strip(),'deployment_manifest_commit':deployment_commit,'python':sys.version.split()[0],'gh':gh_version,'public_app_bundled':public is not None,
         'public_app':public_config(public['client_id'],public['app_slug']) if public else None,
         'logo_sha256':hashlib.sha256(logo.read_bytes()).hexdigest() if logo.is_file() else None},indent=2))
     # Finder may decorate generated .app/framework folders in Documents. Remove
@@ -115,10 +117,12 @@ if __name__=='__main__':
     parser.add_argument('--output',type=Path,default=ROOT/'runtime/macos-build/output')
     parser.add_argument('--gh',required=True,type=Path);parser.add_argument('--client-id');parser.add_argument('--app-slug')
     parser.add_argument('--version',default='0.1.3');parser.add_argument('--python-license',type=Path)
+    parser.add_argument('--deployment-commit',help='Full reviewed deployment commit for an unpublished installer test')
+    parser.add_argument('--build-label',default='',help='Public label displayed alongside the test version')
     parser.add_argument('--public-config',type=Path,help='Reviewed public-only config; exactly version/client_id/app_slug')
     args=parser.parse_args()
     if bool(args.client_id)!=bool(args.app_slug):parser.error('Public client ID and slug are required together')
     if args.public_config and args.client_id:parser.error('Choose a config file or explicit public fields')
     public=load_public_config(args.public_config) if args.public_config else ({'client_id':args.client_id,'app_slug':args.app_slug} if args.client_id else None)
     if args.public_config and public is None:parser.error('Reviewed public config file is missing')
-    build(args.output,args.gh,public,args.version,args.python_license)
+    build(args.output,args.gh,public,args.version,args.python_license,args.deployment_commit,args.build_label)

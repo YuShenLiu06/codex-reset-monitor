@@ -19,6 +19,8 @@ struct Choice: Identifiable { let id = UUID(); let label: String; let value: Str
     @Published var canGoBack = false
     @Published var userCode = ""
     @Published var codeCopied = false
+    @Published var retryDevice = false
+    var runID = UUID()
     var promptID: Int?
     var process: Process?
     var input: FileHandle?
@@ -43,12 +45,18 @@ struct Choice: Identifiable { let id = UUID(); let label: String; let value: Str
         }
     }
     func start() {
-        guard !preview else { return }
+        guard !preview, process?.isRunning != true else { return }
+        let generation = UUID(); runID = generation
+        stopping = false; retryDevice = false; problem = ""; finished = false
+        promptID = nil; choices = []; links = []; buffer = Data(); clearUserCode()
         guard let resources = Bundle.main.resourceURL else { fail("找不到安装文件，请重新下载完整安装包。"); return }
         let executable = resources.appendingPathComponent("worker/reset-worker")
         guard FileManager.default.isExecutableFile(atPath: executable.path) else { fail("安装包不完整，请重新下载。"); return }
         let task = Process(); let incoming = Pipe(); let outgoing = Pipe(); let errors = Pipe()
         task.executableURL = executable
+        if let index = CommandLine.arguments.firstIndex(of: "--offline-device"), CommandLine.arguments.count > index + 2 {
+            task.arguments = ["--offline-device",CommandLine.arguments[index+1],CommandLine.arguments[index+2]]
+        }
         task.currentDirectoryURL = resources
         var environment = ProcessInfo.processInfo.environment
         environment["PATH"] = resources.appendingPathComponent("tools").path + ":/usr/bin:/bin:/usr/sbin:/sbin"
@@ -59,13 +67,14 @@ struct Choice: Identifiable { let id = UUID(); let label: String; let value: Str
         outgoing.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
             guard !data.isEmpty else { handle.readabilityHandler = nil; return }
-            Task { @MainActor in self.consume(data) }
+            Task { @MainActor in if self.runID == generation { self.consume(data) } }
         }
         errors.fileHandleForReading.readabilityHandler = { handle in
             if handle.availableData.isEmpty { handle.readabilityHandler = nil }
         }
         task.terminationHandler = { task in
             Task { @MainActor in
+                guard self.runID == generation else { return }
                 self.waiting = false; self.promptID = nil; self.choices = []; self.links = []
                 self.clearUserCode()
                 if self.stopping { self.title = "设置已暂停"; self.detail = "进度已保留。重新打开后可以继续；如果上次提交结果不明确，会先请你核对。"; self.problem = self.detail }
@@ -100,6 +109,9 @@ struct Choice: Identifiable { let id = UUID(); let label: String; let value: Str
                     if CommandLine.arguments.contains("--smoke-cancel") { respond("cancel") }
                     if CommandLine.arguments.contains("--smoke-pause") { stop() }
                 }
+                if CommandLine.arguments.contains("--offline-ui-check"), CommandLine.arguments.contains("--offline-device") {
+                    offlinePrompt()
+                }
             } else if type == "notice" {
                 if finished && message["stage"] as? String == "cleanup" { continue }
                 clearUserCode()
@@ -110,17 +122,54 @@ struct Choice: Identifiable { let id = UUID(); let label: String; let value: Str
                 }
                 if message["stage"] as? String == "github", let code = message["user_code"] as? String, code.count == 9,
                    code.range(of:"^[A-Z0-9]{4}-[A-Z0-9]{4}$",options:.regularExpression) != nil,
-                   links.contains(where: { $0.absoluteString == "https://github.com/login/device" }) { userCode = code }
+                   links.contains(where: { $0.absoluteString == "https://github.com/login/device" }) {
+                    userCode = code
+                    if CommandLine.arguments.contains("--offline-ui-check"), let index=CommandLine.arguments.firstIndex(of:"--offline-device"), CommandLine.arguments.count>index+2 {
+                        captureOffline(URL(fileURLWithPath:CommandLine.arguments[index+2]).appendingPathComponent("device.png"))
+                    }
+                }
                 if let text = message["text"] as? String, !text.isEmpty {
                     detail = text; title = message["title"] as? String ?? "继续设置"
                 }
                 if message["stage"] as? String == "enabled" { finished = true; links = [] }
-                if message["stage"] as? String == "stopped" { problem = detail; promptID = nil; choices = []; links = [] }
+                if message["stage"] as? String == "stopped" {
+                    problem = detail; promptID = nil; choices = []; links = []; waiting = false
+                    retryDevice = message["retry_device"] as? Bool ?? false
+                    if CommandLine.arguments.contains("--offline-ui-check"), let index=CommandLine.arguments.firstIndex(of:"--offline-device"), CommandLine.arguments.count>index+2 {
+                        let root=URL(fileURLWithPath:CommandLine.arguments[index+2])
+                        captureOffline(root.appendingPathComponent("stopped.png"))
+                        try? Data(detail.utf8).write(to:root.appendingPathComponent("stopped.txt"))
+                        DispatchQueue.main.asyncAfter(deadline:.now()+1.5) { NSApplication.shared.terminate(nil) }
+                    }
+                }
             } else if type == "done" {
                 clearUserCode()
                 waiting = false; promptID = nil; choices = []; links = []
                 if !finished && problem.isEmpty { title = "设置已结束"; detail = "下次打开可以继续设置。暂停不会撤回已经提交的操作。"; problem = detail }
             }
+        }
+    }
+    // Only drives the explicit offline worker; never normal account setup.
+    func offlinePrompt() {
+        guard let index = CommandLine.arguments.firstIndex(of:"--offline-device"), CommandLine.arguments.count > index+2 else { return }
+        let root=URL(fileURLWithPath:CommandLine.arguments[index+2],isDirectory:true)
+        let generation=runID
+        let selected=choices.first { $0.value != "cancel" }
+        if title == "这是你的账号吗？" { captureOffline(root.appendingPathComponent("identity.png")) }
+        if title == "连接飞书" {
+            captureOffline(root.appendingPathComponent("after-preflight.png"))
+            try? Data("passed".utf8).write(to:root.appendingPathComponent("gui-passed.txt"))
+            DispatchQueue.main.asyncAfter(deadline:.now()+1) { if self.runID == generation { self.stop() } }
+        } else if let selected {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.7) { if self.runID == generation { self.respond(selected.value) } }
+        }
+    }
+    func captureOffline(_ url:URL) {
+        DispatchQueue.main.asyncAfter(deadline:.now()+0.3) {
+            guard let view=NSApplication.shared.windows.first(where: { $0.isVisible })?.contentView,
+                  let bitmap=view.bitmapImageRepForCachingDisplay(in:view.bounds) else { return }
+            view.cacheDisplay(in:view.bounds,to:bitmap)
+            if let data=bitmap.representation(using:.png,properties:[:]) { try? data.write(to:url) }
         }
     }
     func respond(_ value: String) {
@@ -137,12 +186,19 @@ struct Choice: Identifiable { let id = UUID(); let label: String; let value: Str
     }
     func fail(_ text: String) { clearUserCode(); problem = text; detail = text; title = "暂时停在这里"; waiting = false }
     func stop() {
-        guard let process = process, process.isRunning else { return }
+        guard let process = process, process.isRunning, !stopping else { return }
+        let generation = runID
         stopping = true; promptID = nil; choices = []; links = []; waiting = true
         clearUserCode()
         title = "正在暂停"; detail = "正在结束本地连接并保留进度…"
         process.interrupt()
         try? input?.close()
+        // Native trust evaluation or a blocked system call may not service
+        // Python's interrupt immediately. Bound cancellation of this worker.
+        DispatchQueue.main.asyncAfter(deadline: .now()+2) {
+            guard self.runID == generation, process.isRunning else { return }
+            process.terminate()
+        }
     }
     func linkLabel(_ url: URL) -> String {
         if url.host == "open.feishu.cn" { return "打开飞书官方页面" }
@@ -197,6 +253,10 @@ struct ContentView: View {
                     Button(choice.label) { wizard.respond(choice.value) }.controlSize(.large).disabled(wizard.preview)
                 }
                 if wizard.finished || !wizard.problem.isEmpty { Button("关闭") { NSApplication.shared.terminate(nil) }.controlSize(.large) }
+                if wizard.retryDevice {
+                    Button("重新连接 GitHub") { wizard.start() }.controlSize(.large)
+                        .disabled(wizard.process?.isRunning == true || wizard.preview)
+                }
             }
             if wizard.active && !wizard.finished && wizard.problem.isEmpty {
                 Button("暂停设置，稍后继续") { wizard.stop() }.disabled(wizard.stopping)
@@ -211,9 +271,15 @@ struct ContentView: View {
             Divider()
             Text("概率来自第三方，不代表 OpenAI 官方保证。连接和测试都需要你本人确认。")
                 .font(.caption).foregroundStyle(.secondary)
+            Text("测试版 \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "未知") \(Bundle.main.object(forInfoDictionaryKey: "CodexBuildLabel") as? String ?? "")")
+                .font(.caption2).foregroundStyle(.secondary)
+            if CommandLine.arguments.contains("--offline-device") {
+                Text("离线模拟测试：未连接真实账号").font(.caption).foregroundStyle(.secondary)
+            }
         }
         .padding(32).frame(width:660,height:490).background(Color(NSColor.windowBackgroundColor))
         .onAppear {
+            if CommandLine.arguments.contains("--offline-ui-check") { NSApplication.shared.activate(ignoringOtherApps:true) }
             if CommandLine.arguments.contains("--smoke-start") { wizard.start() }
             if let index = CommandLine.arguments.firstIndex(of: "--capture"), CommandLine.arguments.count > index + 1 {
                 let destination = CommandLine.arguments[index + 1]
@@ -228,7 +294,10 @@ struct ContentView: View {
             }
         }
         .onDisappear { wizard.stop() }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in wizard.stop() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+            wizard.stop()
+            if wizard.process?.isRunning == true { wizard.process?.terminate() }
+        }
     }
 }
 @main struct InstallerApp: App {

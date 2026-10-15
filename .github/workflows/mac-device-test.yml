@@ -1,0 +1,85 @@
+name: Mac device fix test artifact
+run-name: Unpublished Mac device test · ${{ github.sha }}
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'installer/**'
+      - 'macos/**'
+      - 'tests/test_github_oauth.py'
+      - 'scripts/build_macos.py'
+      - '.github/workflows/mac-device-test.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    if: github.repository == 'YuShenLiu06/codex-reset-monitor' && (github.ref == 'refs/heads/codex/device-request-tls-fix' || github.head_ref == 'codex/device-request-tls-fix')
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13.16'
+          architecture: arm64
+      - name: Native protocol and device error tests
+        run: |
+          test "$(uname -m)" = arm64
+          python3 -m unittest discover -s tests -p test_macos_gui.py -v
+          python3 -m unittest discover -s tests -p test_github_oauth.py -v
+      - name: Hash-locked build dependencies
+        env:
+          PIP_NO_CACHE_DIR: '1'
+          PIP_DISABLE_PIP_VERSION_CHECK: '1'
+        run: |
+          python3 -m venv "$RUNNER_TEMP/device-build"
+          "$RUNNER_TEMP/device-build/bin/python" -m pip install --require-hashes --only-binary=:all: -r macos/build-requirements.txt
+          python3 scripts/release_dependencies.py "$RUNNER_TEMP/device-deps"
+      - name: Build unpublished Mac 0.1.7 test package
+        run: |
+          "$RUNNER_TEMP/device-build/bin/python" scripts/build_macos.py \
+            --output runtime/mac-device-test --version 0.1.7 --build-label test.2 \
+            --gh "$RUNNER_TEMP/device-deps/gh/bin/gh" \
+            --python-license "$RUNNER_TEMP/device-deps/Python-LICENSE.txt" \
+            --deployment-commit 519c2696a5286a388e524d575393acbfe59f070d \
+            --public-config macos/public-app.json
+      - name: Verify actual artifact and fixed public HTTPS without OAuth
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,pathlib,pyexpat,shutil,zipfile
+          root=pathlib.Path('runtime/mac-device-test')
+          upstream=pathlib.Path(pyexpat.__file__)
+          source_sha=hashlib.sha256(upstream.read_bytes()).hexdigest()
+          assert source_sha=='e63db04d2a13d9216497c8e4dd280b81aeae6cb42a7563a527143ecd1941b6ff'
+          shutil.copy2(upstream,root/'UPSTREAM-PYEXPAT.so')
+          with zipfile.ZipFile(root/'codex-reset-installer-macos-arm64-preview.zip') as archive:
+              name=next(n for n in archive.namelist() if n.endswith('/pyexpat.cpython-313-darwin.so'))
+              payload=archive.read(name)
+          (root/'PACKAGED-PYEXPAT.so').write_bytes(payload)
+          (root/'NATIVE-PROVENANCE.json').write_text(json.dumps({'upstream_sha256':source_sha,'packaged_sha256':hashlib.sha256(payload).hexdigest(),'input':'official setup-python 3.13.16; matches reviewed official Python package'},indent=2))
+          PY
+          python3 scripts/verify_macos_release.py runtime/mac-device-test "$GITHUB_SHA" --public-config macos/public-app.json
+          "runtime/mac-device-test/Codex 提醒设置.app/Contents/Resources/worker/reset-worker" --tls-check > runtime/mac-device-test/PUBLIC-TLS-CHECK.json
+          python3 scripts/verify_deployment_pair.py "runtime/mac-device-test/Codex 提醒设置.app/Contents/Resources/worker/reset-worker" 519c2696a5286a388e524d575393acbfe59f070d runtime/mac-device-test/DEPLOYMENT-PAIR-CHECKS.json
+          python3 scripts/verify_macos_device_ui.py runtime/mac-device-test/codex-reset-installer-macos-arm64-preview.zip runtime/mac-device-test/gui-evidence
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: unpublished-mac-device-test
+          path: |
+            runtime/mac-device-test/codex-reset-installer-macos-arm64-preview.zip
+            runtime/mac-device-test/SHA256SUMS
+            runtime/mac-device-test/BUILD-CHECKS.json
+            runtime/mac-device-test/PUBLIC-TLS-CHECK.json
+            runtime/mac-device-test/DEPLOYMENT-PAIR-CHECKS.json
+            runtime/mac-device-test/gui-evidence/
+            runtime/mac-device-test/NATIVE-PROVENANCE.json
+            runtime/mac-device-test/UPSTREAM-PYEXPAT.so
+            runtime/mac-device-test/PACKAGED-PYEXPAT.so
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0

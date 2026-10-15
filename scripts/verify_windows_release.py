@@ -111,7 +111,11 @@ def verify(directory,commit):
     info=ctypes.create_string_buffer(length);assert version.GetFileVersionInfoW(str(executable),0,length,info)
     fixed=ctypes.c_void_p();size=ctypes.c_uint()
     assert version.VerQueryValueW(info,'\\',ctypes.byref(fixed),ctypes.byref(size))
-    values=struct.unpack('<13I',ctypes.string_at(fixed,52));assert values[0]==0xFEEF04BD and values[2:4]==(1,6<<16)
+    values=struct.unpack('<13I',ctypes.string_at(fixed,52));assert values[0]==0xFEEF04BD and values[2:4]==(1,7<<16)
+    for field in ('FileVersion','ProductVersion'):
+        value=ctypes.c_void_p();length=ctypes.c_uint()
+        assert version.VerQueryValueW(info,'\\StringFileInfo\\040904b0\\'+field,ctypes.byref(value),ctypes.byref(length))
+        assert ctypes.wstring_at(value.value)=='0.1.7-preview.1'
     payload=inspect_exe(executable)
     public=json.loads((ROOT/'macos/public-app.json').read_text())
     inspect_windows(directory/WINDOWS_ZIP,commit,public,digest(ROOT/'assets/logo-v1.png'))
@@ -192,6 +196,14 @@ def verify(directory,commit):
         # Use the cached bundled gh with no user install.
         gh=subprocess.run([str(cached/'tools/gh.exe'),'--version'],env=environment,capture_output=True,text=True,timeout=15)
         assert gh.returncode==0 and gh.stdout.startswith('gh version 2.95.0 ')
+        # Fixed unauthenticated GETs from the actual extracted frozen worker.
+        tls=subprocess.run([str(cached/'worker/reset-worker.exe'),'--tls-check'],env=environment,cwd=empty,capture_output=True,text=True,timeout=45)
+        assert tls.returncode==0,tls.stderr[-1000:]
+        tls_report=json.loads(tls.stdout);assert tls_report['oauth_requests']==0 and tls_report['certificate_verification'] is True
+        (evidence/'public-tls.json').write_text(json.dumps(tls_report,indent=2),encoding='utf-8')
+        from scripts.verify_deployment_pair import verify as verify_deployment
+        deployment_commit=json.loads((cached/'BUILD-INFO.json').read_text())['deployment_manifest_commit']
+        verify_deployment(cached/'worker/reset-worker.exe',deployment_commit,directory/'DEPLOYMENT-PAIR-CHECKS.json')
         # Actual published old ZIP; same machine, path shape, clean environment and UI marker.
         old_zip=root/'old.zip'
         with urllib.request.urlopen(BASELINE,timeout=60) as response,old_zip.open('wb') as target:shutil.copyfileobj(response,target)
@@ -214,7 +226,8 @@ def verify(directory,commit):
                 'unzip_seconds':round(unzip,4),'launch_interactive_seconds':old,
                 'first_unzip_plus_launch_seconds':round(unzip+old[0],4)}}
     checks={'source_commit':commit,'archive_sha256':checksum,'asset':EXE,'manifest_sha256':payload['manifest_sha256'],
-        'platform':'real Windows x64 standard runner','tests':results,'comparison':comparison,
+        'platform':'real Windows x64 standard runner','tests':results,'comparison':comparison,'public_tls_check':tls_report,
+        'deployment_pairing':json.loads((directory/'DEPLOYMENT-PAIR-CHECKS.json').read_text()),
         'single_exe_checks':['embedded-files-match-scanned-package','normal-no-argument-launch-and-close','empty-working-directory','Chinese-and-space-paths',
             'clean-PATH-no-Python-gh-dotnet','first-and-repeat-launch','cache-corruption-repair','prepare-cancel-cleanup-retry',
             'stale-preparation-cleanup','old-ZIP-to-EXE-progress-resume','previous-version-cache-retained','config-and-progress-retained','concurrent-launch',

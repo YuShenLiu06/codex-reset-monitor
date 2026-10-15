@@ -128,8 +128,10 @@ def main(argv=None,ui=None):
         api=GitHubAPI(token);progress.mark('github')
         stage='repository-validation'
         installer=Installer(api,progress,manifest(),emit)
-        check_installation(installer,args.app_slug,ui)
+        emit('compatibility','GitHub 已完成连接，正在读取账号身份…')
+        installer.identify()
         confirm('确认当前授权 GitHub 用户，输入 '+installer.github_login+'：',installer.github_login)
+        check_installation(installer,args.app_slug,ui)
         if ui is not None:
             recovery=ui.recover(progress)
             args.retry_failed_stage=recovery.get('retry')
@@ -171,7 +173,9 @@ def main(argv=None,ui=None):
         return 0
     except (SetupError,MonitorError) as exc:
         # Only stable local errors; never print auth response, request or credential values.
-        emit('stopped',str(exc));return 2
+        if isinstance(exc,SetupError) and ui is not None and callable(getattr(ui,'failure',None)):ui.failure(exc)
+        else:emit('stopped',str(exc))
+        return 2
     except KeyboardInterrupt:
         emit('stopped','USER_CANCELLED：进度保留，已开始注册的应用请复用。');return 130
     except EOFError:

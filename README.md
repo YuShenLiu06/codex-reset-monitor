@@ -27,10 +27,10 @@
 
 | 你的电脑 | 下载 |
 |---|---|
-| Mac（Apple 芯片） | [Mac 测试版 ZIP](https://github.com/YuShenLiu06/codex-reset-monitor/releases/download/v0.1.6-preview.1/codex-reset-installer-macos-arm64-preview.zip) |
-| Windows（64 位） | [Windows 单 EXE 测试版](https://github.com/YuShenLiu06/codex-reset-monitor/releases/download/v0.1.6-preview.1/codex-reset-installer-windows-x64-preview.exe) |
+| Mac（Apple 芯片） | [Mac 测试版 ZIP](https://github.com/YuShenLiu06/codex-reset-monitor/releases/download/v0.1.7-preview.1/codex-reset-installer-macos-arm64-preview.zip) |
+| Windows（64 位） | [Windows 单 EXE 测试版](https://github.com/YuShenLiu06/codex-reset-monitor/releases/download/v0.1.7-preview.1/codex-reset-installer-windows-x64-preview.exe) |
 
-不用额外安装工具，也不用自己创建连接应用。可以邀请他人试用并反馈，完整真实账号流程仍在验证。系统可能阻止打开，遇到拦截请暂停，保留系统安全保护。版本变化见[发布页](https://github.com/YuShenLiu06/codex-reset-monitor/releases/tag/v0.1.6-preview.1)。
+不用额外安装工具，也不用自己创建连接应用。可以邀请他人试用并反馈，完整真实账号流程仍在验证。系统可能阻止打开，遇到拦截请暂停，保留系统安全保护。版本变化见[发布页](https://github.com/YuShenLiu06/codex-reset-monitor/releases/tag/v0.1.7-preview.1)。
 
 Mac 完整解压后双击「Codex 提醒设置」；Windows 直接双击下载的 EXE，等待本地组件准备完成。GitHub 的「Download ZIP」是源码，不是安装包。
 

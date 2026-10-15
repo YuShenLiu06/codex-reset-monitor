@@ -13,7 +13,7 @@
     <PublishTrimmed>false</PublishTrimmed>
     <DebugType>none</DebugType>
     <AssemblyName>CodexResetInstaller</AssemblyName>
-    <Version>0.1.6</Version>
+    <Version>0.1.7</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon Condition="Exists('app.ico')">app.ico</ApplicationIcon>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>

@@ -83,7 +83,14 @@ class Progress:
 def device_authorize(client_id,emit,*,request=oauth_request,clock=time.monotonic,sleep=time.sleep):
     if not isinstance(client_id,str) or not re.fullmatch(r'[A-Za-z0-9_.-]{8,128}',client_id):
         raise SetupError('CLIENT_ID_REQUIRED','register a real installer GitHub App with device flow enabled')
+    emit('github','正在向 GitHub 申请连接码…')
     begin=request('https://github.com/login/device/code',{'client_id':client_id,'scope':'offline_access'})
+    if begin.get('error') is not None:
+        error=begin.get('error')
+        code={'device_flow_disabled':'DEVICE_FLOW_DISABLED','incorrect_client_credentials':'CLIENT_ID_REJECTED',
+              'invalid_client':'CLIENT_ID_REJECTED'}.get(error,'DEVICE_SESSION_REJECTED') if isinstance(error,str) else 'INVALID_DEVICE_SESSION'
+        raise SetupError(code,'verify the existing public App configuration; do not create another App',
+            diagnostics={'phase':'github_device_code','category':'config','http_status':200})
     device,user=begin.get('device_code'),begin.get('user_code')
     interval,expiry=begin.get('interval'),begin.get('expires_in')
     if (not isinstance(device,str) or not 1<=len(device)<=128 or not isinstance(user,str)
@@ -147,11 +154,16 @@ def verify_installation_permissions(actual):
         raise exc
 
 
-def verify_installation(api,target,slug):
+def verify_identity(api):
     user=api.request('GET','/user')
     if not isinstance(user.get('login'),str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9-]{0,38}',user['login']):
         raise SetupError('INVALID_GITHUB_IDENTITY')
     if type(user.get('id')) is not int or user['id']<=0:raise SetupError('INVALID_GITHUB_IDENTITY')
+    return {'login':user['login'],'id':user['id']}
+
+
+def verify_installation(api,target,slug):
+    user=verify_identity(api)
     installations=api.request('GET','/user/installations?per_page=100')
     if installations.get('total_count',0)>100:raise SetupError('INSTALLATION_LIST_TOO_LARGE')
     matches=[]
@@ -185,6 +197,10 @@ def verify_repository(api,target,manifest,*,allow_enabled=False):
     executable={entry['path'] for entry in tree.get('tree',[]) if entry['path'].endswith(('.py','.pyz','.so'))
                 or entry['path'].startswith('.github/workflows/')}
     if not executable<=set(manifest):raise SetupError('UNREVIEWED_EXECUTABLE_FILES')
+    missing=set(manifest)-{entry['path'] for entry in tree.get('tree',[])}
+    if missing:
+        raise SetupError('PROJECT_FILES_MISSING','installer and deployment versions do not match; no files overwritten',
+            diagnostics={'phase':'repository_validation','operation':'manifest_pairing','category':'config','missing_count':len(missing)})
     for entry in tree.get('tree',[]):
         if entry['path'] in manifest and entry.get('mode') not in ('100644','100755'):
             raise SetupError('UNSAFE_REPOSITORY_FILE_TYPE')
@@ -196,7 +212,10 @@ def verify_repository(api,target,manifest,*,allow_enabled=False):
             if name=='project.json' and decode_json(content).get('project_id')!=PROJECT_ID:raise ValueError()
         except Exception:raise SetupError('PROJECT_FILES_MISMATCH','use a reviewed matching release; no files overwritten') from None
     for workflow in ('ci.yml','monitor.yml','prepare.yml','acceptance.yml'):
-        api.request('GET','/repos/'+target+'/actions/workflows/'+workflow)
+        try:api.request('GET','/repos/'+target+'/actions/workflows/'+workflow)
+        except SetupError as exc:
+            if exc.code!='NOT_FOUND':raise
+            raise SetupError('WORKFLOW_UNAVAILABLE','review Actions on the official target repository; no automatic permission changes',diagnostics=exc.diagnostics) from None
     api.request('GET','/repos/'+target+'/actions/secrets/public-key')
     try:gate=api.request('GET','/repos/'+target+'/actions/variables/MONITOR_ENABLED')
     except SetupError as exc:
@@ -256,7 +275,16 @@ class Installer:
         self.clock=clock;self.sleep=sleep;self.commit=None
         self.base='/repos/'+progress.target
 
+    def identify(self):
+        identity=verify_identity(self.api)
+        previous=self.progress.data['github_user_id']
+        if previous is not None and previous!=identity['id']:
+            raise SetupError('RESUME_IDENTITY_MISMATCH','use the original account or a separate progress file')
+        self.github_login=identity['login']
+        return identity
+
     def check(self,slug):
+        self.emit('compatibility','正在核对 GitHub 应用安装范围…')
         identity=verify_installation(self.api,self.progress.target,slug)
         previous=self.progress.data['github_user_id']
         if previous is not None and previous!=identity['id']:
@@ -264,6 +292,7 @@ class Installer:
         self.github_login=identity['login']
         self.progress.data['github_user_id']=identity['id'];self.progress.save()
         self.emit('github','当前授权 GitHub 用户：'+identity['login']+'；目标：'+self.progress.target)
+        self.emit('compatibility','正在核对目标仓库版本、文件和 Actions…可暂停并保留进度。')
         self.commit=verify_repository(self.api,self.progress.target,self.manifest,allow_enabled=self.progress.data['pending']=='enable' and self.progress.data['received_confirmed'])
         self.progress.mark('compatibility');self.emit('compatibility','目标身份、代码及权限已核验；不会覆盖源码。')
 

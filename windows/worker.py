@@ -10,6 +10,14 @@ def main():
     for stream in (sys.stdin,sys.stdout,sys.stderr):
         if stream is None:raise RuntimeError('PIPE_STREAM_REQUIRED')
         stream.reconfigure(encoding='utf-8',errors='strict',newline='\n')
+    from installer.tls import bootstrap_tls
+    if not bootstrap_tls():return 2
+    if len(sys.argv)==3 and sys.argv[1]=='--preflight-check':
+        from installer.offline_preflight import main
+        return main(sys.argv[2])
+    if sys.argv[1:]==['--tls-check']:
+        from installer.tls import public_tls_check
+        return public_tls_check()
     arguments=sys.argv[1:]
     cancel_file=None;offline=None
     while arguments:
