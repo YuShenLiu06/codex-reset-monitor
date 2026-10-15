@@ -17,6 +17,8 @@ struct Choice: Identifiable { let id = UUID(); let label: String; let value: Str
     @Published var stopping = false
     @Published var fieldError = ""
     @Published var canGoBack = false
+    @Published var userCode = ""
+    @Published var codeCopied = false
     var promptID: Int?
     var process: Process?
     var input: FileHandle?
@@ -26,6 +28,12 @@ struct Choice: Identifiable { let id = UUID(); let label: String; let value: Str
         if let index = CommandLine.arguments.firstIndex(of: "--show-page"), CommandLine.arguments.count > index + 1 {
             preview = true; active = true
             switch CommandLine.arguments[index + 1] {
+            case "device":
+                title = "连接 GitHub"; detail = "复制下方授权码，再打开 GitHub 官方页面粘贴。\n这是页面预览，示例代码不能用于授权。"
+                userCode = "ABCD-1234"; links = [URL(string:"https://github.com/login/device")!]; waiting = true
+            case "feishu-name":
+                title = "给提醒机器人起个名字"; detail = "这是你在飞书里看到的名称。可以改成自己喜欢的名字，稍后会填入飞书官方创建页；也可以在那里修改。"
+                promptID = 1; field = "Codex 提醒"; placeholder = "例如：我的 Codex 小助手"
             case "github": title = "连接 GitHub"; detail = "在 GitHub 官方页面，只选择存放提醒设置的仓库。\n完成连接后，再点下面的按钮。"; choices = [Choice(label: "已经连接，继续", value: "")]
             case "feishu": title = "连接飞书"; detail = "我们会打开飞书官方页面。\n按页面提示，连接你自己的提醒机器人。"; choices = [Choice(label: "打开飞书授权", value: "")]
             case "test": title = "发一条测试"; detail = "先给你发送一条写着“安装测试”的消息。\n收到后再开启提醒。"; choices = [Choice(label: "发一条测试", value: ""),Choice(label:"先不开启",value:"")]
@@ -59,6 +67,7 @@ struct Choice: Identifiable { let id = UUID(); let label: String; let value: Str
         task.terminationHandler = { task in
             Task { @MainActor in
                 self.waiting = false; self.promptID = nil; self.choices = []; self.links = []
+                self.clearUserCode()
                 if self.stopping { self.title = "设置已暂停"; self.detail = "进度已保留。重新打开后可以继续；如果上次提交结果不明确，会先请你核对。"; self.problem = self.detail }
                 if self.promptID == nil && !self.finished && self.problem.isEmpty {
                     self.title = task.terminationStatus == 0 ? "设置已结束" : "暂时没有完成"
@@ -78,6 +87,8 @@ struct Choice: Identifiable { let id = UUID(); let label: String; let value: Str
                 fail("安装过程返回了无效数据。问题标识：UI_RESPONSE_INVALID"); process?.terminate(); return
             }
             if type == "prompt" {
+                clearUserCode()
+                links.removeAll { $0.path == "/login/device" || $0.path == "/page/cli" }
                 title = message["title"] as? String ?? "继续设置"; detail = message["text"] as? String ?? ""
                 fieldError = message["error"] as? String ?? ""; canGoBack = message["back"] as? Bool ?? false
                 promptID = message["id"] as? Int; field = message["initial"] as? String ?? ""; placeholder = message["placeholder"] as? String ?? ""
@@ -91,17 +102,22 @@ struct Choice: Identifiable { let id = UUID(); let label: String; let value: Str
                 }
             } else if type == "notice" {
                 if finished && message["stage"] as? String == "cleanup" { continue }
+                clearUserCode()
                 if let urls = message["links"] as? [String], !urls.isEmpty {
                     links = urls.compactMap { value in
                         guard let url = URL(string:value), url.scheme == "https", ["github.com","open.feishu.cn"].contains(url.host ?? "") else { return nil }; return url
                     }
                 }
+                if message["stage"] as? String == "github", let code = message["user_code"] as? String, code.count == 9,
+                   code.range(of:"^[A-Z0-9]{4}-[A-Z0-9]{4}$",options:.regularExpression) != nil,
+                   links.contains(where: { $0.absoluteString == "https://github.com/login/device" }) { userCode = code }
                 if let text = message["text"] as? String, !text.isEmpty {
                     detail = text; title = message["title"] as? String ?? "继续设置"
                 }
                 if message["stage"] as? String == "enabled" { finished = true; links = [] }
                 if message["stage"] as? String == "stopped" { problem = detail; promptID = nil; choices = []; links = [] }
             } else if type == "done" {
+                clearUserCode()
                 waiting = false; promptID = nil; choices = []; links = []
                 if !finished && problem.isEmpty { title = "设置已结束"; detail = "下次打开可以继续设置。暂停不会撤回已经提交的操作。"; problem = detail }
             }
@@ -113,10 +129,17 @@ struct Choice: Identifiable { let id = UUID(); let label: String; let value: Str
         do { try input.write(contentsOf: raw + Data([10])); promptID = nil; choices = []; field = ""; waiting = true }
         catch { fail("连接中断了。请关闭后重新打开，继续设置。") }
     }
-    func fail(_ text: String) { problem = text; detail = text; title = "暂时停在这里"; waiting = false }
+    func clearUserCode() { userCode = ""; codeCopied = false }
+    func copyUserCode(to pasteboard: NSPasteboard = .general) {
+        guard !userCode.isEmpty else { return }
+        pasteboard.clearContents()
+        codeCopied = pasteboard.setString(userCode,forType:.string)
+    }
+    func fail(_ text: String) { clearUserCode(); problem = text; detail = text; title = "暂时停在这里"; waiting = false }
     func stop() {
         guard let process = process, process.isRunning else { return }
         stopping = true; promptID = nil; choices = []; links = []; waiting = true
+        clearUserCode()
         title = "正在暂停"; detail = "正在结束本地连接并保留进度…"
         process.interrupt()
         try? input?.close()
@@ -147,6 +170,13 @@ struct ContentView: View {
             ScrollView { VStack(alignment: .leading, spacing: 18) {
             Text(wizard.title).font(.system(size:29,weight:.semibold))
             Text(wizard.detail).font(.system(size:15)).lineSpacing(7).fixedSize(horizontal:false,vertical:true).textSelection(.enabled)
+            if !wizard.userCode.isEmpty {
+                HStack(spacing:18) {
+                    Text(wizard.userCode).font(.system(size:26,weight:.semibold,design:.monospaced)).textSelection(.enabled)
+                    Button(wizard.codeCopied ? "已复制" : "复制授权码") { wizard.copyUserCode() }
+                        .buttonStyle(.borderedProminent).disabled(wizard.preview)
+                }.padding(16).frame(maxWidth:.infinity,alignment:.leading).background(Color.blue.opacity(0.07),in:RoundedRectangle(cornerRadius:12))
+            }
             if wizard.waiting { HStack { ProgressView().controlSize(.small); Text("请稍等…").foregroundStyle(.secondary) } }
             ForEach(wizard.links, id: \.absoluteString) { url in
                 Button(wizard.linkLabel(url)) { NSWorkspace.shared.open(url) }
@@ -202,6 +232,11 @@ struct ContentView: View {
     }
 }
 @main struct InstallerApp: App {
+    init() {
+        if let icon = Bundle.main.url(forResource:"AppIcon",withExtension:"icns"), let image = NSImage(contentsOf:icon) {
+            NSApplication.shared.applicationIconImage = image
+        }
+    }
     var body: some Scene {
         WindowGroup("Codex 提醒设置") { ContentView() }
             .windowResizability(.contentSize)

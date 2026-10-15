@@ -228,10 +228,10 @@ class InstallerTest(unittest.TestCase):
         import feishu_app
         credentials=feishu_app.AppCredentials('cli_'+'x'*16,'synthetic-secret','ou_'+'y'*24)
         session=Mock();session.verification_url='https://open.feishu.cn/page/cli?user_code=TEST'
-        with patch('builtins.input',side_effect=['','CREATE','VERIFIED']),patch.object(cli,'begin_registration',return_value=session) as begin,             patch.object(cli,'poll_registration',return_value=credentials),patch.object(cli,'tenant_token',return_value='synthetic-tat'),             patch.object(cli.getpass,'getpass',side_effect=AssertionError('No manual secret required')):
+        with patch('builtins.input',side_effect=['','','CREATE','VERIFIED']),patch.object(cli,'begin_registration',return_value=session) as begin,             patch.object(cli,'poll_registration',return_value=credentials),patch.object(cli,'tenant_token',return_value='synthetic-tat'),             patch.object(cli.getpass,'getpass',side_effect=AssertionError('No manual secret required')):
             values=cli.collect_feishu(self.progress,self.emit)
         self.assertEqual(values['FEISHU_APP_ID'],credentials.app_id)
-        self.assertEqual(begin.call_args.kwargs,{'create_only':True,'existing_app_id':None})
+        self.assertEqual(begin.call_args.kwargs,{'create_only':True,'existing_app_id':None,'app_name':'Codex 提醒'})
 
     def test_unknown_test_ledger_cannot_enable_or_generate_new_send(self):
         self.core.check('unit-installer');self.core.configure(self.values,Mock());self.core.validate()

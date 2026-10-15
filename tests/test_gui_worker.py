@@ -28,7 +28,12 @@ class GUIWorkerTest(unittest.TestCase):
     def test_official_device_page_and_code_display_only_in_current_window(self):
         output=io.StringIO();GUI(writer=output).emit('github','在 https://github.com/login/device 输入 ABCD-1234；仅本人')
         value=json.loads(output.getvalue());self.assertEqual(value['links'],['https://github.com/login/device'])
-        self.assertIn('ABCD-1234',value['text'])
+        self.assertEqual(value['user_code'],'ABCD-1234')
+        self.assertIn('复制下方授权码',value['text'])
+    def test_device_copy_value_requires_the_exact_official_page(self):
+        output=io.StringIO();gui=GUI(writer=output)
+        gui.emit('github','https://github.com/login/device/other ABCD-1234')
+        value=json.loads(output.getvalue());self.assertEqual(value['user_code'],'')
     def test_unknown_ui_step_fails_closed(self):
         with self.assertRaises(SetupError):GUI(reader=io.StringIO(),writer=io.StringIO()).ask('unsupported')
 
@@ -70,12 +75,12 @@ class GUIEndToEndTest(unittest.TestCase):
                 if prompt['choices']:
                     value=prompt['choices'][0]['value']
                     if prompt['title']=='准备存放设置的地方':value='reuse'
-                else:value=TARGET
+                else:value='我的 Codex 小助手' if prompt['title']=='给提醒机器人起个名字' else TARGET
                 return json.dumps({'id':prompt['id'],'value':value})+'\n'
         api=FakeAPI();gui=GUI(Reader(),Writer())
         session=Mock(verification_url='https://open.feishu.cn/safe-mock')
         credentials=AppCredentials('cli_'+'x'*16,'synthetic-secret','ou_'+'y'*24)
-        with tempfile.TemporaryDirectory() as directory, patch.object(cli,'GitHubAPI',return_value=api), patch.object(cli,'device_authorize',return_value=api.token), patch.object(cli,'manifest',return_value=api.manifest), patch.object(cli,'begin_registration',return_value=session), patch.object(cli,'poll_registration',return_value=credentials), patch.object(cli,'tenant_token',return_value='synthetic-token'), patch.object(core,'upload_secrets') as upload:
+        with tempfile.TemporaryDirectory() as directory, patch.object(cli,'GitHubAPI',return_value=api), patch.object(cli,'device_authorize',return_value=api.token), patch.object(cli,'manifest',return_value=api.manifest), patch.object(cli,'begin_registration',return_value=session) as begin, patch.object(cli,'poll_registration',return_value=credentials), patch.object(cli,'tenant_token',return_value='synthetic-token'), patch.object(core,'upload_secrets') as upload:
             result=cli.main(['--run','--client-id','Iv1.UnitPublicID','--app-slug','unit-installer','--progress',str(Path(directory)/'state.json')],ui=gui)
         self.assertEqual(result,0);self.assertEqual(api.variables['MONITOR_ENABLED'],'true')
         self.assertEqual(len(api.runs),3);upload.assert_called_once()
@@ -83,6 +88,7 @@ class GUIEndToEndTest(unittest.TestCase):
         self.assertIn('你收到测试了吗？',titles);self.assertIn('开启提醒',titles)
         self.assertNotIn('synthetic-secret',json.dumps(messages))
         self.assertIsNone(api.token)
+        self.assertEqual(begin.call_args.kwargs['app_name'],'我的 Codex 小助手')
 
 class GUIInputRepairTest(unittest.TestCase):
     def gui(self,values):
@@ -111,6 +117,21 @@ class GUIInputRepairTest(unittest.TestCase):
         self.assertEqual(gui.ask('目标仓库 OWNER/REPO：'),'user/repo')
         self.assertEqual(gui.ask('要复用的公开 App ID：'),'cli_abcdefgh')
         self.assertEqual(len(out.getvalue().splitlines()),4)
+    def test_name_is_editable_and_invalid_names_are_correctable(self):
+        gui,out=self.gui(['','x'*21,'提醒\n机器人','我的 Codex 小助手'])
+        self.assertEqual(gui.ask('提醒机器人名称 [默认 Codex 提醒]：'),'我的 Codex 小助手')
+        prompts=[json.loads(v) for v in out.getvalue().splitlines()]
+        self.assertEqual(prompts[0]['initial'],'Codex 提醒')
+        self.assertTrue(all(p['error'] for p in prompts[1:]))
+    def test_cancelling_name_does_not_start_registration_or_mark_app_created(self):
+        from installer.cli import collect_feishu
+        from types import SimpleNamespace
+        from unittest.mock import Mock,patch
+        progress=SimpleNamespace(data={'app_created':False},save=Mock())
+        gui,out=self.gui(['new','cancel'])
+        with patch('installer.cli.begin_registration') as begin,self.assertRaises(SetupError):
+            collect_feishu(progress,gui.emit,ui=gui)
+        begin.assert_not_called();progress.save.assert_not_called()
     def test_registration_only_saves_after_successful_correction(self):
         import tempfile
         from pathlib import Path

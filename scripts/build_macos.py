@@ -40,6 +40,10 @@ def build(output,gh,public=None):
         if previous.get('CFBundleIdentifier')!='com.yushen.codex-reset-installer.local':raise SystemExit('Refusing to replace an unrelated app')
         shutil.rmtree(app)
     binary.mkdir(parents=True);resources.mkdir()
+    icon_builder=work/'make-app-icon';iconset=work/'AppIcon.iconset'
+    run(['swiftc','-module-cache-path',work/'module-cache',ROOT/'macos/AppIcon.swift','-o',icon_builder])
+    run([icon_builder,iconset])
+    run(['/usr/bin/iconutil','-c','icns',iconset,'-o',resources/'AppIcon.icns'])
     shutil.copytree(work/'dist/reset-worker',resources/'worker')
     (resources/'tools').mkdir();shutil.copy2(gh,resources/'tools/gh');(resources/'tools/gh').chmod(0o755)
     licenses=resources/'licenses';licenses.mkdir()
@@ -54,8 +58,8 @@ def build(output,gh,public=None):
                 if path.is_file():
                     destination=licenses/name/str(item);destination.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(path,destination)
     info={'CFBundleName':'Codex 提醒设置','CFBundleDisplayName':'Codex 提醒设置','CFBundleIdentifier':'com.yushen.codex-reset-installer.local',
-          'CFBundleExecutable':'CodexResetInstaller','CFBundlePackageType':'APPL','CFBundleShortVersionString':'0.1.1',
-          'CFBundleVersion':'2','LSMinimumSystemVersion':'13.0','NSHighResolutionCapable':True}
+          'CFBundleExecutable':'CodexResetInstaller','CFBundlePackageType':'APPL','CFBundleShortVersionString':'0.1.2',
+          'CFBundleVersion':'3','CFBundleIconFile':'AppIcon.icns','LSMinimumSystemVersion':'13.0','NSHighResolutionCapable':True}
     with (contents/'Info.plist').open('wb') as handle:plistlib.dump(info,handle)
     run(['swiftc','-parse-as-library','-target','arm64-apple-macos13.0','-module-cache-path',work/'module-cache',
          ROOT/'macos/InstallerApp.swift','-o',binary/'CodexResetInstaller'])

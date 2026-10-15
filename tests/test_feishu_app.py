@@ -120,6 +120,29 @@ class AppTest(unittest.TestCase):
         session=a.begin_registration(Mock(return_value=dict(base,expire_in=True,interval=-1)))
         self.assertEqual((session.expires,session.interval),(600,5))
 
+    def test_name_uses_official_separate_query_param_with_exact_url_encoding(self):
+        import urllib.parse
+        name='我的提醒 &?# 小助手'
+        session=a.begin_registration(Mock(return_value={'device_code':'synthetic-device','user_code':'ABC'}),
+                                     create_only=True,app_name=name)
+        query=urllib.parse.parse_qs(urllib.parse.urlsplit(session.verification_url).query)
+        self.assertEqual(query['name'],[name]);self.assertEqual(query['createOnly'],['true'])
+        self.assertNotIn('clientID',query)
+        import base64,gzip
+        encoded=query['addons'][0]
+        addons=json.loads(gzip.decompress(base64.urlsafe_b64decode(encoded+'='*((4-len(encoded)%4)%4))))
+        self.assertNotIn('name',addons)
+        self.assertEqual(addons['scopes'],{'tenant':['im:message:send_as_bot']})
+
+    def test_invalid_or_reuse_name_fails_before_starting_registration(self):
+        request=Mock()
+        for name in ('','  ','x'*21,'提醒\n机器人','提醒\x00',None,123):
+            if name is None:continue  # An omitted name remains backwards compatible.
+            with self.subTest(name=name),self.assertRaises(m.MonitorError):
+                a.begin_registration(request,create_only=True,app_name=name)
+        with self.assertRaises(m.MonitorError):a.begin_registration(request,existing_app_id=self.credentials.app_id,app_name='新名称')
+        request.assert_not_called()
+
     def test_begin_invalid_fields_and_errors_never_echo_server(self):
         base={'device_code':'synthetic-device','user_code':'ABC'}
         for override in ({'error':'denied','error_description':self.credentials.app_secret},

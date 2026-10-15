@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 from installer.github_api import SetupError
+from monitor import MonitorError
 
 TITLES={'plan':'设置 Codex 提醒','github':'连接 GitHub','target':'选择存放位置',
         'compatibility':'检查设置','feishu':'连接飞书','secrets':'保存设置',
@@ -36,7 +37,7 @@ class GUI:
             if answer=='cancel':raise SetupError('USER_CANCELLED')
             if back and answer=='__back__':return None
             try:return validator(answer)
-            except (SetupError,ValueError):error=explanation
+            except (SetupError,MonitorError,ValueError):error=explanation
 
     def public_fields(self):
         from installer.registration import public_config
@@ -77,6 +78,10 @@ class GUI:
             return self.request('准备存放设置的地方','如果还没有这个项目，先复制一份到自己的账号。',choices(('已经有了','reuse'),('还没有，复制一份','fork')))
         if prompt.startswith('官方扫码新建'):
             return self.request('连接飞书','打开飞书官方页面，创建或连接你自己的提醒机器人。',choices(('创建一个提醒机器人','new'),('连接已有机器人','reuse')))
+        if prompt.startswith('提醒机器人名称'):
+            from feishu_app import DEFAULT_APP_NAME,validate_app_name
+            return self.field('给提醒机器人起个名字','这是你在飞书里看到的名称。可以改成自己喜欢的名字，稍后会填入飞书官方创建页；也可以在那里修改。',
+                '例如：我的 Codex 小助手',validate_app_name,'请填 1–20 个字符的名称，不要换行。',initial=DEFAULT_APP_NAME)
         if prompt.startswith('要复用的公开'):
             return self.field('填写机器人编号','从飞书应用设置复制 App ID，不需要填写密码或密钥。','cli_…',self.app_id,'请填写 cli_ 开头的飞书 App ID；不要填写密钥或网页地址。')
         if prompt.startswith('是否明确授权一次'):
@@ -164,14 +169,16 @@ class GUI:
         if stage=='github' and message.startswith('当前授权 GitHub 用户'):return
         text={'prepare':'正在准备…','preview':'正在检查，不会发送消息…','complete':'检查已通过。新安装尚未开启；恢复中的开启结果以 GitHub 设置为准。',
               'enabled':'设置完成。每小时检查一次，符合条件时会通知你。','cleanup':'你可以在 GitHub 官方设置页撤销安装工具的授权，提醒仍会继续运行。'}.get(stage,'')
-        links=[]
+        links=[];user_code=''
         for url in re.findall(r'https://[^\s；，]+',message):
             parsed=urlsplit(url)
             if parsed.scheme=='https' and parsed.netloc in ('github.com','open.feishu.cn'):
                 links.append(url.rstrip('。'))
-        if stage=='github' and '/login/device' in message:
+        if stage=='github' and 'https://github.com/login/device' in links:
             code=re.search(r'\b[A-Z0-9]{4}-[A-Z0-9]{4}\b',message)
-            if code:text='在 GitHub 官方页面输入：'+code.group()+'\n这个代码只给你本人使用。'
+            if code:
+                user_code=code.group()
+                text='复制下方授权码，再打开 GitHub 官方页面粘贴。\n这个代码只给你本人使用，完成后会自动继续。'
         if stage=='feishu' and links:text='请打开飞书官方页面，按页面提示连接。'
         if stage=='github' and 'Enable Device Flow' in message:text='创建页还需要：勾选 Enable Device Flow，保留 Expire user authorization tokens。不要生成私钥或密码。'
         if stage=='github' and '名称如重名' in message:text='在 GitHub 页面核对后创建。应用名如果重名，请改一个名字。已预填最小权限。'
@@ -181,7 +188,7 @@ class GUI:
             code=candidate if re.fullmatch(r'[A-Z][A-Z0-9_]{1,63}',candidate) else 'SETUP_FAILED'
             text='已暂停。下次打开可以继续。已提交的操作不会撤回；若刚确认开启，提醒可能已开启，请在 GitHub 核对。' if code=='USER_CANCELLED' else '暂时没有完成。请保留这项问题标识：'+code
             if code=='UNEXPECTED_ERROR':text=message
-        if text or links:self.send({'type':'notice','stage':stage,'title':TITLES.get(stage,'继续设置'),'text':text,'links':links})
+        if text or links:self.send({'type':'notice','stage':stage,'title':TITLES.get(stage,'继续设置'),'text':text,'links':links,'user_code':user_code})
 
 
 def main():

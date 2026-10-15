@@ -11,6 +11,7 @@ import json
 import os
 import re
 import time
+import unicodedata
 import urllib.parse
 import urllib.request
 from monitor import MonitorError, SendUnknown, NoRedirect, decode_json, digest
@@ -20,6 +21,16 @@ TOKEN_URL = 'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/intern
 MESSAGE_URL = 'https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=open_id'
 APP_SECRET_NAMES = ('FEISHU_APP_ID', 'FEISHU_APP_SECRET', 'FEISHU_SELF_OPEN_ID',
                     'FEISHU_APP_READINESS', 'FEISHU_NOTIFY_BACKEND')
+DEFAULT_APP_NAME = 'Codex 提醒'
+
+
+def validate_app_name(value):
+    # A small installer input limit, not a claim about the platform's maximum.
+    if not isinstance(value,str):raise MonitorError('Invalid app name')
+    value=value.strip()
+    if not 1<=len(value)<=20 or any(unicodedata.category(c).startswith('C') for c in value):
+        raise MonitorError('App name must contain 1–20 characters without control characters')
+    return value
 
 
 @dataclasses.dataclass(repr=False)
@@ -102,6 +113,7 @@ class Registration:
     interval: int
     create_only: bool = False
     existing_app_id: str | None = None
+    app_name: str | None = None
 
     @property
     def verification_url(self):
@@ -112,13 +124,19 @@ class Registration:
         query={'user_code':self.user_code,'from':'sdk','source':'codex-reset-monitor','tp':'sdk','addons':encoded}
         if self.create_only:query['createOnly']='true'
         if self.existing_app_id:query['clientID']=self.existing_app_id
+        # Official SDK appPreset.name is a separate query param, not an addon.
+        # It pre-fills creation only; the user can edit it on the official page.
+        if self.app_name is not None:query['name']=validate_app_name(self.app_name)
         return 'https://open.feishu.cn/page/cli?'+urllib.parse.urlencode(query)
 
 
-def begin_registration(request=None, *, create_only=False, existing_app_id=None):
+def begin_registration(request=None, *, create_only=False, existing_app_id=None, app_name=None):
     if type(create_only) is not bool or (existing_app_id is not None and (not isinstance(existing_app_id,str) or not re.fullmatch(r'cli_[a-zA-Z0-9_-]{8,128}',existing_app_id))):
         raise MonitorError('Invalid registration mode or existing app ID')
     if create_only and existing_app_id is not None:raise MonitorError('New-app and reuse modes cannot be combined')
+    if app_name is not None:
+        if not create_only:raise MonitorError('Name preset is only supported when creating a new app')
+        app_name=validate_app_name(app_name)
     request = request or request_json
     data=request(REGISTRATION_URL,{'action':'begin','archetype':'PersonalAgent',
         'auth_method':'client_secret','request_user_info':'open_id tenant_brand'},form=True,timeout=30)
@@ -129,7 +147,7 @@ def begin_registration(request=None, *, create_only=False, existing_app_id=None)
     expiry=data.get('expire_in',data.get('expires_in',600)); interval=data.get('interval',5)
     if type(expiry) is not int or expiry <= 0: expiry=600
     if type(interval) is not int or interval <= 0: interval=5
-    return Registration(device,user,min(expiry,600),max(5,min(interval,60)),create_only,existing_app_id)
+    return Registration(device,user,min(expiry,600),max(5,min(interval,60)),create_only,existing_app_id,app_name)
 
 
 def poll_registration(session,request=None,clock=time.monotonic,sleep=time.sleep):

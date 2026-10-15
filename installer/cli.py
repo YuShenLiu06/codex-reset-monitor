@@ -11,7 +11,8 @@ from installer.core import (SOURCE_REPOSITORY, Progress, Installer, SetupError,
     device_authorize, expected_manifest, APP_SECRET_NAMES)
 from installer.github_api import GitHubAPI
 from feishu_app import (AppCredentials, begin_registration, poll_registration,
-                        readiness_record, tenant_token, validate_credentials)
+                        readiness_record, tenant_token, validate_credentials,
+                        DEFAULT_APP_NAME, validate_app_name)
 from monitor import MonitorError
 from installer.registration import configure as configure_public
 
@@ -44,16 +45,17 @@ def collect_feishu(progress,emit,ui=None):
     ask=ui.ask if ui is not None else input
     confirm=ui.confirm if ui is not None else require
     choice=ask('官方扫码新建 [默认 new] / 明确复用 reuse：').strip() or 'new'
-    existing=None
+    existing=None;app_name=None
     if choice=='new':
         if progress.data['app_created']:raise SetupError('REUSE_PREVIOUS_APP','previous registration started; explicitly reuse it rather than create another')
+        app_name=validate_app_name(ask('提醒机器人名称 [默认 '+DEFAULT_APP_NAME+']：').strip() or DEFAULT_APP_NAME)
         confirm('将启动官方注册并预填最小发送权限，输入 CREATE：','CREATE')
         progress.data['app_created']=True;progress.save()
     elif choice=='reuse':
         existing=ask('要复用的公开 App ID（不需要手填 Secret/open_id）：').strip()
         confirm('将对该应用扫码授权最小发送权限，输入 REUSE：','REUSE')
     else:raise SetupError('INVALID_APP_CHOICE')
-    session=begin_registration(create_only=choice=='new',existing_app_id=existing)
+    session=begin_registration(create_only=choice=='new',existing_app_id=existing,app_name=app_name)
     emit('feishu','官方验证链接（可在飞书/手机打开，勿记录公开日志）：'+session.verification_url)
     credentials=poll_registration(session)
     emit('feishu','请在飞书后台核验机器人能力、im:message:send_as_bot、已审批发布版本及本人可用范围；注册和 token 均不证明能发送。')
