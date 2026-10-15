@@ -197,6 +197,9 @@ def verify(directory,commit):
         assert tls.returncode==0,tls.stderr[-1000:]
         tls_report=json.loads(tls.stdout);assert tls_report['oauth_requests']==0 and tls_report['certificate_verification'] is True
         (evidence/'public-tls.json').write_text(json.dumps(tls_report,indent=2),encoding='utf-8')
+        from scripts.verify_deployment_pair import verify as verify_deployment
+        deployment_commit=json.loads((cached/'BUILD-INFO.json').read_text())['deployment_manifest_commit']
+        verify_deployment(cached/'worker/reset-worker.exe',deployment_commit,directory/'DEPLOYMENT-PAIR-CHECKS.json')
         # Actual published old ZIP; same machine, path shape, clean environment and UI marker.
         old_zip=root/'old.zip'
         with urllib.request.urlopen(BASELINE,timeout=60) as response,old_zip.open('wb') as target:shutil.copyfileobj(response,target)
@@ -220,6 +223,7 @@ def verify(directory,commit):
                 'first_unzip_plus_launch_seconds':round(unzip+old[0],4)}}
     checks={'source_commit':commit,'archive_sha256':checksum,'asset':EXE,'manifest_sha256':payload['manifest_sha256'],
         'platform':'real Windows x64 standard runner','tests':results,'comparison':comparison,'public_tls_check':tls_report,
+        'deployment_pairing':json.loads((directory/'DEPLOYMENT-PAIR-CHECKS.json').read_text()),
         'single_exe_checks':['embedded-files-match-scanned-package','normal-no-argument-launch-and-close','empty-working-directory','Chinese-and-space-paths',
             'clean-PATH-no-Python-gh-dotnet','first-and-repeat-launch','cache-corruption-repair','prepare-cancel-cleanup-retry',
             'stale-preparation-cleanup','old-ZIP-to-EXE-progress-resume','previous-version-cache-retained','config-and-progress-retained','concurrent-launch',

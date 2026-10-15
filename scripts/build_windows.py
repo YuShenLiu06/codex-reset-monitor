@@ -15,7 +15,7 @@ import zipfile
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
-from installer.core import expected_manifest
+from scripts.deployment_manifest import build_manifest
 from installer.registration import load as load_public
 
 
@@ -23,7 +23,7 @@ def run(command,**options):
     return subprocess.run([str(v) for v in command],cwd=ROOT,check=True,**options)
 
 
-def main(deps,output):
+def main(deps,output,deployment_commit=None):
     if sys.platform!='win32' or platform.machine().lower() not in ('amd64','x86_64'):
         raise SystemExit('Build on a real standard Windows x64 runner')
     if sys.version_info[:3]!=(3,13,16):raise SystemExit('Use pinned Python 3.13.16 x64')
@@ -35,7 +35,8 @@ def main(deps,output):
     if not run([gh,'--version'],capture_output=True,text=True).stdout.startswith('gh version 2.95.0 '):raise ValueError('gh version mismatch')
     public=load_public(ROOT/'macos/public-app.json')
     if public is None:raise ValueError('Reviewed public App configuration required')
-    manifest=work/'trusted_files.json';manifest.write_text(json.dumps(expected_manifest(ROOT),sort_keys=True),encoding='utf-8')
+    reviewed,deployment_commit=build_manifest(ROOT,deployment_commit)
+    manifest=work/'trusted_files.json';manifest.write_text(json.dumps(reviewed,sort_keys=True),encoding='utf-8')
     public_file=work/'public_app.json';public_file.write_text(json.dumps(public),encoding='utf-8')
     run([sys.executable,'-m','PyInstaller','--noconfirm','--clean','--onedir','--console',
          '--name','reset-worker','--distpath',work/'dist','--workpath',work/'pyinstaller',
@@ -84,7 +85,7 @@ def main(deps,output):
                     destination=licenses/name/str(item);destination.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(source,destination);found=True
         if not found:raise ValueError('Missing license: '+name)
     commit=run(['git','rev-parse','HEAD'],capture_output=True,text=True).stdout.strip()
-    info={'purpose':'unsigned Windows x64 preview; no live account E2E','source_commit':commit,
+    info={'purpose':'unsigned Windows x64 preview; no live account E2E','source_commit':commit,'deployment_manifest_commit':deployment_commit,
           'architecture':'x64','python':platform.python_version(),'dotnet_sdk':'10.0.402','dotnet_runtime':'10.0.13',
           'gh':'2.95.0','public_app':public,'logo_sha256':hashlib.sha256((package/'ProjectLogo.png').read_bytes()).hexdigest(),
           'dependencies':json.loads((ROOT/'windows/dependencies.json').read_text(encoding='utf-8'))}
@@ -104,4 +105,5 @@ def main(deps,output):
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--deps',type=Path,required=True);parser.add_argument('--output',type=Path,required=True)
-    args=parser.parse_args();main(args.deps,args.output)
+    parser.add_argument('--deployment-commit',help='Full reviewed deployment commit for an unpublished installer test')
+    args=parser.parse_args();main(args.deps,args.output,args.deployment_commit)

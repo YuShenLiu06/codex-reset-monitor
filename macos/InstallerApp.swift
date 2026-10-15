@@ -109,6 +109,9 @@ struct Choice: Identifiable { let id = UUID(); let label: String; let value: Str
                     if CommandLine.arguments.contains("--smoke-cancel") { respond("cancel") }
                     if CommandLine.arguments.contains("--smoke-pause") { stop() }
                 }
+                if CommandLine.arguments.contains("--offline-ui-check"), CommandLine.arguments.contains("--offline-device") {
+                    offlinePrompt()
+                }
             } else if type == "notice" {
                 if finished && message["stage"] as? String == "cleanup" { continue }
                 clearUserCode()
@@ -119,7 +122,12 @@ struct Choice: Identifiable { let id = UUID(); let label: String; let value: Str
                 }
                 if message["stage"] as? String == "github", let code = message["user_code"] as? String, code.count == 9,
                    code.range(of:"^[A-Z0-9]{4}-[A-Z0-9]{4}$",options:.regularExpression) != nil,
-                   links.contains(where: { $0.absoluteString == "https://github.com/login/device" }) { userCode = code }
+                   links.contains(where: { $0.absoluteString == "https://github.com/login/device" }) {
+                    userCode = code
+                    if CommandLine.arguments.contains("--offline-ui-check"), let index=CommandLine.arguments.firstIndex(of:"--offline-device"), CommandLine.arguments.count>index+2 {
+                        captureOffline(URL(fileURLWithPath:CommandLine.arguments[index+2]).appendingPathComponent("device.png"))
+                    }
+                }
                 if let text = message["text"] as? String, !text.isEmpty {
                     detail = text; title = message["title"] as? String ?? "继续设置"
                 }
@@ -127,12 +135,40 @@ struct Choice: Identifiable { let id = UUID(); let label: String; let value: Str
                 if message["stage"] as? String == "stopped" {
                     problem = detail; promptID = nil; choices = []; links = []; waiting = false
                     retryDevice = message["retry_device"] as? Bool ?? false
+                    if CommandLine.arguments.contains("--offline-ui-check"), let index=CommandLine.arguments.firstIndex(of:"--offline-device"), CommandLine.arguments.count>index+2 {
+                        let root=URL(fileURLWithPath:CommandLine.arguments[index+2])
+                        captureOffline(root.appendingPathComponent("stopped.png"))
+                        try? Data(detail.utf8).write(to:root.appendingPathComponent("stopped.txt"))
+                    }
                 }
             } else if type == "done" {
                 clearUserCode()
                 waiting = false; promptID = nil; choices = []; links = []
                 if !finished && problem.isEmpty { title = "设置已结束"; detail = "下次打开可以继续设置。暂停不会撤回已经提交的操作。"; problem = detail }
             }
+        }
+    }
+    // Only drives the explicit offline worker; never normal account setup.
+    func offlinePrompt() {
+        guard let index = CommandLine.arguments.firstIndex(of:"--offline-device"), CommandLine.arguments.count > index+2 else { return }
+        let root=URL(fileURLWithPath:CommandLine.arguments[index+2],isDirectory:true)
+        let generation=runID
+        let selected=choices.first { $0.value != "cancel" }
+        if title == "这是你的账号吗？" { captureOffline(root.appendingPathComponent("identity.png")) }
+        if title == "连接飞书" {
+            captureOffline(root.appendingPathComponent("after-preflight.png"))
+            try? Data("passed".utf8).write(to:root.appendingPathComponent("gui-passed.txt"))
+            DispatchQueue.main.asyncAfter(deadline:.now()+1) { if self.runID == generation { self.stop() } }
+        } else if let selected {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.7) { if self.runID == generation { self.respond(selected.value) } }
+        }
+    }
+    func captureOffline(_ url:URL) {
+        DispatchQueue.main.asyncAfter(deadline:.now()+0.3) {
+            guard let view=NSApplication.shared.windows.first(where: { $0.isVisible })?.contentView,
+                  let bitmap=view.bitmapImageRepForCachingDisplay(in:view.bounds) else { return }
+            view.cacheDisplay(in:view.bounds,to:bitmap)
+            if let data=bitmap.representation(using:.png,properties:[:]) { try? data.write(to:url) }
         }
     }
     func respond(_ value: String) {
@@ -234,7 +270,7 @@ struct ContentView: View {
             Divider()
             Text("概率来自第三方，不代表 OpenAI 官方保证。连接和测试都需要你本人确认。")
                 .font(.caption).foregroundStyle(.secondary)
-            Text("测试版 \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "未知")")
+            Text("测试版 \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "未知") \(Bundle.main.object(forInfoDictionaryKey: "CodexBuildLabel") as? String ?? "")")
                 .font(.caption2).foregroundStyle(.secondary)
             if CommandLine.arguments.contains("--offline-device") {
                 Text("离线模拟测试：未连接真实账号").font(.caption).foregroundStyle(.secondary)

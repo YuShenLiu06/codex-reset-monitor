@@ -4,7 +4,10 @@ from installer.tls import bootstrap_tls
 
 if not bootstrap_tls():raise SystemExit(2)
 
-if sys.argv[1:]==['--tls-check']:
+if len(sys.argv)==3 and sys.argv[1]=='--preflight-check':
+    from installer.offline_preflight import main
+    raise SystemExit(main(sys.argv[2]))
+elif sys.argv[1:]==['--tls-check']:
     from installer.tls import public_tls_check
     raise SystemExit(public_tls_check())
 elif len(sys.argv)==4 and sys.argv[1]=='--offline-device':

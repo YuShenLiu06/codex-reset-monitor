@@ -21,6 +21,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.13.16'
@@ -41,9 +42,10 @@ jobs:
       - name: Build unpublished Mac 0.1.7 test package
         run: |
           "$RUNNER_TEMP/device-build/bin/python" scripts/build_macos.py \
-            --output runtime/mac-device-test --version 0.1.7 \
+            --output runtime/mac-device-test --version 0.1.7 --build-label test.2 \
             --gh "$RUNNER_TEMP/device-deps/gh/bin/gh" \
             --python-license "$RUNNER_TEMP/device-deps/Python-LICENSE.txt" \
+            --deployment-commit 519c2696a5286a388e524d575393acbfe59f070d \
             --public-config macos/public-app.json
       - name: Verify actual artifact and fixed public HTTPS without OAuth
         run: |
@@ -62,6 +64,8 @@ jobs:
           PY
           python3 scripts/verify_macos_release.py runtime/mac-device-test "$GITHUB_SHA" --public-config macos/public-app.json
           "runtime/mac-device-test/Codex 提醒设置.app/Contents/Resources/worker/reset-worker" --tls-check > runtime/mac-device-test/PUBLIC-TLS-CHECK.json
+          python3 scripts/verify_deployment_pair.py "runtime/mac-device-test/Codex 提醒设置.app/Contents/Resources/worker/reset-worker" 519c2696a5286a388e524d575393acbfe59f070d runtime/mac-device-test/DEPLOYMENT-PAIR-CHECKS.json
+          python3 scripts/verify_macos_device_ui.py runtime/mac-device-test/codex-reset-installer-macos-arm64-preview.zip runtime/mac-device-test/gui-evidence
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
@@ -71,6 +75,8 @@ jobs:
             runtime/mac-device-test/SHA256SUMS
             runtime/mac-device-test/BUILD-CHECKS.json
             runtime/mac-device-test/PUBLIC-TLS-CHECK.json
+            runtime/mac-device-test/DEPLOYMENT-PAIR-CHECKS.json
+            runtime/mac-device-test/gui-evidence/
             runtime/mac-device-test/NATIVE-PROVENANCE.json
             runtime/mac-device-test/UPSTREAM-PYEXPAT.so
             runtime/mac-device-test/PACKAGED-PYEXPAT.so
