@@ -1,7 +1,16 @@
 """Frozen worker entry, including a no-network first-page smoke check for CI."""
 import sys
+from installer.tls import bootstrap_tls
 
-if sys.argv[1:]==['--smoke-test']:
+if not bootstrap_tls():raise SystemExit(2)
+
+if sys.argv[1:]==['--tls-check']:
+    from installer.tls import public_tls_check
+    raise SystemExit(public_tls_check())
+elif len(sys.argv)==4 and sys.argv[1]=='--offline-device':
+    from macos.offline_device import run
+    raise SystemExit(run(sys.argv[2],sys.argv[3]))
+elif sys.argv[1:]==['--smoke-test']:
     import io
     import json
     from pathlib import Path

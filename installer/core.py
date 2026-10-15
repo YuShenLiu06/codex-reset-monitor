@@ -83,7 +83,14 @@ class Progress:
 def device_authorize(client_id,emit,*,request=oauth_request,clock=time.monotonic,sleep=time.sleep):
     if not isinstance(client_id,str) or not re.fullmatch(r'[A-Za-z0-9_.-]{8,128}',client_id):
         raise SetupError('CLIENT_ID_REQUIRED','register a real installer GitHub App with device flow enabled')
+    emit('github','正在向 GitHub 申请连接码…')
     begin=request('https://github.com/login/device/code',{'client_id':client_id,'scope':'offline_access'})
+    if begin.get('error') is not None:
+        error=begin.get('error')
+        code={'device_flow_disabled':'DEVICE_FLOW_DISABLED','incorrect_client_credentials':'CLIENT_ID_REJECTED',
+              'invalid_client':'CLIENT_ID_REJECTED'}.get(error,'DEVICE_SESSION_REJECTED') if isinstance(error,str) else 'INVALID_DEVICE_SESSION'
+        raise SetupError(code,'verify the existing public App configuration; do not create another App',
+            diagnostics={'phase':'github_device_code','category':'config','http_status':200})
     device,user=begin.get('device_code'),begin.get('user_code')
     interval,expiry=begin.get('interval'),begin.get('expires_in')
     if (not isinstance(device,str) or not 1<=len(device)<=128 or not isinstance(user,str)

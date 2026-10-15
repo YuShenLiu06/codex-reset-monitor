@@ -183,6 +183,7 @@ class GUI:
         if stage=='feishu' and links:text='请打开飞书官方页面，按页面提示连接。'
         if stage=='github' and 'Enable Device Flow' in message:text='创建页还需要：勾选 Enable Device Flow，保留 Expire user authorization tokens。不要生成私钥或密码。'
         if stage=='github' and '名称如重名' in message:text='在 GitHub 页面核对后创建。应用名如果重名，请改一个名字。已预填最小权限。'
+        if stage=='github' and message=='正在向 GitHub 申请连接码…':text='正在连接 GitHub，获取连接码…网络较慢时可以暂停，不会自动反复申请。'
         if stage=='cleanup':return  # Native UI always provides explicit revocation links after stopping.
         if stage=='stopped':
             candidate=message.split('：',1)[0].split(':',1)[0]
@@ -190,6 +191,34 @@ class GUI:
             text='已暂停。下次打开可以继续。已提交的操作不会撤回；若刚确认开启，提醒可能已开启，请在 GitHub 核对。' if code=='USER_CANCELLED' else '暂时没有完成。请保留这项问题标识：'+code
             if code=='UNEXPECTED_ERROR':text=message
         if text or links:self.send({'type':'notice','stage':stage,'title':TITLES.get(stage,'继续设置'),'text':text,'links':links,'user_code':user_code})
+
+    def failure(self,error):
+        detail=error.diagnostics
+        messages={
+            'DEVICE_TLS_CERTIFICATE':'未能通过 GitHub 的证书校验。请核对系统时间与网络；如果使用公司网络，请联系网络管理员。请保留系统安全保护。',
+            'DEVICE_TLS_FAILED':'与 GitHub 的安全连接未能建立。请检查网络后重新连接。',
+            'DEVICE_REQUEST_TIMEOUT':'连接 GitHub 超时了。检查网络后，可由你重新连接。',
+            'DEVICE_DNS_FAILED':'暂时找不到 GitHub 服务器。请检查网络或 DNS 设置。',
+            'DEVICE_CONNECTION_FAILED':'暂时连接不到 GitHub。请检查网络后重新连接。',
+            'DEVICE_HTTP_ERROR':'GitHub 返回了未成功的 HTTP 响应。请保留下方状态与请求标识，稍后再试。',
+            'DEVICE_INVALID_JSON':'GitHub 返回的内容格式无法识别。请核对网络是否需要网页登录，并保留下方问题标识。',
+            'DEVICE_INVALID_RESPONSE':'GitHub 返回的连接信息不完整。请保留问题标识，联系维护者。',
+            'DEVICE_RESPONSE_TOO_LARGE':'GitHub 返回的内容超出预期。请核对网络，并联系维护者。',
+            'DEVICE_REDIRECT_REJECTED':'连接被重定向，已安全停止。请核对网络是否需要网页登录。',
+            'DEVICE_RESPONSE_UNKNOWN':'GitHub 连接结果无法确认。请保留问题标识，联系维护者。',
+            'DEVICE_FLOW_DISABLED':'当前连接应用未开启 Device Flow。请联系维护者核对现有应用，不要重新创建应用或扩大权限。',
+            'CLIENT_ID_REJECTED':'GitHub 没有接受当前公开连接编号。请联系维护者核对现有应用。',
+            'DEVICE_SESSION_REJECTED':'GitHub 没有接受这次连接申请。请联系维护者核对现有应用。',
+            'TLS_TRUST_UNAVAILABLE':'无法启用系统证书校验。请重新下载完整测试包。'}
+        if error.code not in messages:
+            self.emit('stopped',str(error));return
+        text=messages[error.code]+'\n问题标识：'+error.code
+        labels={'phase':'阶段','http_status':'HTTP 状态','exception_type':'异常类型','request_id':'GitHub 请求标识','verify_code':'证书校验码','elapsed_ms':'耗时（毫秒）'}
+        for key,label in labels.items():
+            if key in detail:text+='\n'+label+'：'+str(detail[key])
+        retry=detail.get('phase')=='github_device_code' and detail.get('category') in {'certificate','tls','timeout','dns','connection','http','json','response','redirect'}
+        self.send({'type':'notice','stage':'stopped','title':'GitHub 连接未完成','text':text,'links':[],
+            'user_code':'','diagnostics':detail,'retry_device':retry})
 
 
 def progress_directory():

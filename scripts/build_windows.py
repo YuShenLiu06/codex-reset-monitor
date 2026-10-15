@@ -75,7 +75,7 @@ def main(deps,output):
                 if Path(name).name.lower().startswith(('license','thirdpartynotice','notice')) and not name.endswith('/'):
                     destination=licenses/package_input.stem/Path(name).name
                     destination.parent.mkdir(parents=True,exist_ok=True);destination.write_bytes(source.read(name))
-    for name in ('pyinstaller','altgraph','packaging','pyinstaller-hooks-contrib','pefile','pywin32-ctypes','setuptools'):
+    for name in ('truststore','pyinstaller','altgraph','packaging','pyinstaller-hooks-contrib','pefile','pywin32-ctypes','setuptools'):
         distribution=importlib.metadata.distribution(name);found=False
         for item in distribution.files or []:
             if item.name.lower().startswith(('license','copying','notice')):

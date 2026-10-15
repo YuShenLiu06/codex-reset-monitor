@@ -74,7 +74,7 @@ def build(output,gh,public=None,version='0.1.3',python_license=None):
         if path.is_file():shutil.copy2(path,licenses/(name+'.txt'))
     if python_license is not None:shutil.copy2(python_license,licenses/'Python.txt')
     import importlib.metadata
-    for name in ('pyinstaller','altgraph','macholib','packaging','pyinstaller-hooks-contrib','setuptools'):
+    for name in ('truststore','pyinstaller','altgraph','macholib','packaging','pyinstaller-hooks-contrib','setuptools'):
         distribution=importlib.metadata.distribution(name)
         for item in distribution.files or []:
             if item.name.lower().startswith(('license','copying','notice')):

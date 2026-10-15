@@ -19,6 +19,8 @@ struct Choice: Identifiable { let id = UUID(); let label: String; let value: Str
     @Published var canGoBack = false
     @Published var userCode = ""
     @Published var codeCopied = false
+    @Published var retryDevice = false
+    var runID = UUID()
     var promptID: Int?
     var process: Process?
     var input: FileHandle?
@@ -43,12 +45,18 @@ struct Choice: Identifiable { let id = UUID(); let label: String; let value: Str
         }
     }
     func start() {
-        guard !preview else { return }
+        guard !preview, process?.isRunning != true else { return }
+        let generation = UUID(); runID = generation
+        stopping = false; retryDevice = false; problem = ""; finished = false
+        promptID = nil; choices = []; links = []; buffer = Data(); clearUserCode()
         guard let resources = Bundle.main.resourceURL else { fail("找不到安装文件，请重新下载完整安装包。"); return }
         let executable = resources.appendingPathComponent("worker/reset-worker")
         guard FileManager.default.isExecutableFile(atPath: executable.path) else { fail("安装包不完整，请重新下载。"); return }
         let task = Process(); let incoming = Pipe(); let outgoing = Pipe(); let errors = Pipe()
         task.executableURL = executable
+        if let index = CommandLine.arguments.firstIndex(of: "--offline-device"), CommandLine.arguments.count > index + 2 {
+            task.arguments = ["--offline-device",CommandLine.arguments[index+1],CommandLine.arguments[index+2]]
+        }
         task.currentDirectoryURL = resources
         var environment = ProcessInfo.processInfo.environment
         environment["PATH"] = resources.appendingPathComponent("tools").path + ":/usr/bin:/bin:/usr/sbin:/sbin"
@@ -59,13 +67,14 @@ struct Choice: Identifiable { let id = UUID(); let label: String; let value: Str
         outgoing.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
             guard !data.isEmpty else { handle.readabilityHandler = nil; return }
-            Task { @MainActor in self.consume(data) }
+            Task { @MainActor in if self.runID == generation { self.consume(data) } }
         }
         errors.fileHandleForReading.readabilityHandler = { handle in
             if handle.availableData.isEmpty { handle.readabilityHandler = nil }
         }
         task.terminationHandler = { task in
             Task { @MainActor in
+                guard self.runID == generation else { return }
                 self.waiting = false; self.promptID = nil; self.choices = []; self.links = []
                 self.clearUserCode()
                 if self.stopping { self.title = "设置已暂停"; self.detail = "进度已保留。重新打开后可以继续；如果上次提交结果不明确，会先请你核对。"; self.problem = self.detail }
@@ -115,7 +124,10 @@ struct Choice: Identifiable { let id = UUID(); let label: String; let value: Str
                     detail = text; title = message["title"] as? String ?? "继续设置"
                 }
                 if message["stage"] as? String == "enabled" { finished = true; links = [] }
-                if message["stage"] as? String == "stopped" { problem = detail; promptID = nil; choices = []; links = [] }
+                if message["stage"] as? String == "stopped" {
+                    problem = detail; promptID = nil; choices = []; links = []; waiting = false
+                    retryDevice = message["retry_device"] as? Bool ?? false
+                }
             } else if type == "done" {
                 clearUserCode()
                 waiting = false; promptID = nil; choices = []; links = []
@@ -137,12 +149,19 @@ struct Choice: Identifiable { let id = UUID(); let label: String; let value: Str
     }
     func fail(_ text: String) { clearUserCode(); problem = text; detail = text; title = "暂时停在这里"; waiting = false }
     func stop() {
-        guard let process = process, process.isRunning else { return }
+        guard let process = process, process.isRunning, !stopping else { return }
+        let generation = runID
         stopping = true; promptID = nil; choices = []; links = []; waiting = true
         clearUserCode()
         title = "正在暂停"; detail = "正在结束本地连接并保留进度…"
         process.interrupt()
         try? input?.close()
+        // Native trust evaluation or a blocked system call may not service
+        // Python's interrupt immediately. Bound cancellation of this worker.
+        DispatchQueue.main.asyncAfter(deadline: .now()+2) {
+            guard self.runID == generation, process.isRunning else { return }
+            process.terminate()
+        }
     }
     func linkLabel(_ url: URL) -> String {
         if url.host == "open.feishu.cn" { return "打开飞书官方页面" }
@@ -197,6 +216,10 @@ struct ContentView: View {
                     Button(choice.label) { wizard.respond(choice.value) }.controlSize(.large).disabled(wizard.preview)
                 }
                 if wizard.finished || !wizard.problem.isEmpty { Button("关闭") { NSApplication.shared.terminate(nil) }.controlSize(.large) }
+                if wizard.retryDevice {
+                    Button("重新连接 GitHub") { wizard.start() }.controlSize(.large)
+                        .disabled(wizard.process?.isRunning == true || wizard.preview)
+                }
             }
             if wizard.active && !wizard.finished && wizard.problem.isEmpty {
                 Button("暂停设置，稍后继续") { wizard.stop() }.disabled(wizard.stopping)
@@ -211,6 +234,11 @@ struct ContentView: View {
             Divider()
             Text("概率来自第三方，不代表 OpenAI 官方保证。连接和测试都需要你本人确认。")
                 .font(.caption).foregroundStyle(.secondary)
+            Text("测试版 \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "未知")")
+                .font(.caption2).foregroundStyle(.secondary)
+            if CommandLine.arguments.contains("--offline-device") {
+                Text("离线模拟测试：未连接真实账号").font(.caption).foregroundStyle(.secondary)
+            }
         }
         .padding(32).frame(width:660,height:490).background(Color(NSColor.windowBackgroundColor))
         .onAppear {
@@ -228,7 +256,10 @@ struct ContentView: View {
             }
         }
         .onDisappear { wizard.stop() }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in wizard.stop() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+            wizard.stop()
+            if wizard.process?.isRunning == true { wizard.process?.terminate() }
+        }
     }
 }
 @main struct InstallerApp: App {

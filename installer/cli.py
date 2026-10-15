@@ -171,7 +171,9 @@ def main(argv=None,ui=None):
         return 0
     except (SetupError,MonitorError) as exc:
         # Only stable local errors; never print auth response, request or credential values.
-        emit('stopped',str(exc));return 2
+        if isinstance(exc,SetupError) and ui is not None and callable(getattr(ui,'failure',None)):ui.failure(exc)
+        else:emit('stopped',str(exc))
+        return 2
     except KeyboardInterrupt:
         emit('stopped','USER_CANCELLED：进度保留，已开始注册的应用请复用。');return 130
     except EOFError:
