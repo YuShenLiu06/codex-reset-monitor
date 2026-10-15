@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import sys
+import zipfile
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from installer.core import expected_manifest
 from installer.registration import public_config
@@ -19,6 +20,18 @@ ROOT=Path(__file__).resolve().parents[1]
 def run(command):
     environment=dict(os.environ,PYINSTALLER_CONFIG_DIR=str(ROOT/'runtime/macos-build/cache'))
     subprocess.run([str(v) for v in command],check=True,cwd=ROOT,env=environment)
+
+def write_app_archive(app,archive):
+    """UTF-8 ZIP names plus Unix symlinks/modes; no Finder extended attributes."""
+    app=Path(app)
+    with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED) as bundle:
+        for path in [app,*sorted(app.rglob('*'))]:
+            name=path.relative_to(app.parent).as_posix()
+            if path.is_symlink():
+                info=zipfile.ZipInfo(name);info.create_system=3
+                info.external_attr=path.lstat().st_mode<<16
+                bundle.writestr(info,os.readlink(path).encode('utf-8'))
+            else:bundle.write(path,name)
 
 def build(output,gh,public=None,version='0.1.3',python_license=None):
     if sys.platform!='darwin' or os.uname().machine!='arm64':raise SystemExit('This local test build supports macOS arm64 only')
@@ -81,7 +94,7 @@ def build(output,gh,public=None,version='0.1.3',python_license=None):
     # Resource forks/Finder metadata are excluded, never quarantine attributes.
     archive=output/'codex-reset-installer-macos-arm64-preview.zip'
     if archive.exists():archive.unlink()
-    run(['/usr/bin/ditto','-c','-k','--keepParent','--norsrc',app,archive])
+    write_app_archive(app,archive)
     (output/'SHA256SUMS').write_text(hashlib.sha256(archive.read_bytes()).hexdigest()+'  '+archive.name+'\n')
     print(app)
     return app

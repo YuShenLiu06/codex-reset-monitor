@@ -5,6 +5,7 @@ import stat
 import tempfile
 import unittest
 import zipfile
+from scripts.build_macos import write_app_archive
 from scripts.verify_macos_release import APP, inspect_archive
 from installer.core import expected_manifest
 
@@ -42,3 +43,16 @@ class ReleaseArchiveTest(unittest.TestCase):
 
     def test_release_workflow_is_in_installers_trusted_manifest(self):
         self.assertIn('.github/workflows/release.yml',expected_manifest(Path(__file__).resolve().parents[1]))
+
+    def test_writer_preserves_utf8_names_links_and_executable_modes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);app=root/APP;app.mkdir()
+            executable=app/'worker';executable.write_bytes(b'synthetic');executable.chmod(0o755)
+            (app/'alias').symlink_to('worker')
+            archive=root/'app.zip';write_app_archive(app,archive)
+            with zipfile.ZipFile(archive) as bundle:
+                self.assertEqual(bundle.read(APP+'/worker'),b'synthetic')
+                self.assertTrue(bundle.getinfo(APP+'/worker').flag_bits & 0x800)
+                self.assertEqual(bundle.getinfo(APP+'/worker').external_attr>>16 & 0o777,0o755)
+                self.assertTrue(stat.S_ISLNK(bundle.getinfo(APP+'/alias').external_attr>>16))
+                self.assertEqual(bundle.read(APP+'/alias'),b'worker')
