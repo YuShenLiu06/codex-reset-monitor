@@ -2,9 +2,9 @@
 
 [返回首页](../README.md) · [macOS 构建设计](macos-installer-plan.md)
 
-维护者先为新版本填写 `docs/release-notes/版本号.md`，只写普通用户能理解的实际变化、使用步骤和当前限制，下载位置保留 `{{DOWNLOADS}}`。随后在 **Actions → Mac and Windows preview release → Run workflow** 选择 `main`，输入该版本号，例如 `v0.1.4-preview.1`。也可向 main 已包含的提交推送同格式 tag。缺少本版说明会在构建前停止；每个版本只发布一次，不覆盖旧资产。技术记录自动放到发布说明末尾的折叠详情。
+维护者先为新版本填写 `docs/release-notes/版本号.md`，只写普通用户能理解的实际变化、使用步骤和当前限制，下载位置保留 `{{DOWNLOADS}}`。随后在 **Actions → Mac and Windows preview release → Run workflow** 选择 `main`，输入该版本号，例如 `v0.1.5-preview.1`。也可向 main 已包含的提交推送同格式 tag。缺少本版说明会在构建前停止；每个版本只发布一次，不覆盖旧资产。技术记录自动放到发布说明末尾的折叠详情。
 
-变更按 **Feat（新增）**、**Bugfix（修复）**、**Change（更改）** 分类，每条用简单中文描述用户能感知的本版变化。没有内容的分类省略，不把历史改动或构建日志当作本次变化。可参考[本版说明](release-notes/v0.1.4-preview.1.md)。
+变更按 **Feat（新增）**、**Bugfix（修复）**、**Change（更改）** 分类，每条用简单中文描述用户能感知的本版变化。没有内容的分类省略，不把历史改动或构建日志当作本次变化。可参考[本版说明](release-notes/v0.1.5-preview.1.md)。
 
 ## 自动完成哪些步骤
 
@@ -12,8 +12,8 @@
 2. 同时在标准 `macos-15` arm64 和 `windows-2025` x64 runner 构建，Windows 直接复用 [windows.yml](../.github/workflows/windows.yml)；两平台 checkout 同一提交。
 3. Mac 扫描并解压 ZIP，检查签名、架构和执行权限，在断网 sandbox 中运行打包 worker，核对公开配置与安全取消。
 4. Mac 从[原始 logo](../assets/logo-v1.png)生成 ICNS，让实际 App 在不显示窗口的模式中验证 application/Dock 图标加载。
-5. Windows 解压真实 ZIP，在无预装运行时的环境运行原生界面、完整离线模拟流程、取消及同进度恢复；保存模拟界面证据，不连接真实账号。
-6. 两平台全部成功后，发布 job 再核对 ZIP 与报告的源码 SHA、公开 App 配置和原图一致，且 Windows 四模式全部通过、未强杀，才公开共同测试版。只发布明确选择的资产，不发布证据目录或任意构建文件。
+5. Windows 在空目录、中文和空格路径运行最终单 EXE，隔离预装工具；检查首启／复启、准备取消与重试、并发启动、缓存损坏修复、旧版本缓存及配置保留、重解析点拒绝，以及完整离线 UI-worker 流程和取消恢复。与已发布旧 ZIP 在同一 runner 比较体积及达到可交互窗口的时间；保留真实窗口截图，不连接账号。
+6. 两平台全部成功后，发布 job 再核对 Mac ZIP、Windows EXE 及报告的源码 SHA、公开 App 配置和原图一致，且 Windows 四模式全部通过、未强杀，才公开共同测试版。只发布明确选择的资产，不发布证据目录或任意构建文件。
 
 标准 `macos-15` 当前为 M1 arm64、3 核、7 GB 内存。[GitHub 官方 runner 表](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)列出该配置；公开仓库使用标准 runner 免费。[计费规则](https://docs.github.com/en/billing/concepts/product-billing/github-actions)不包含免费 larger runner。本 workflow 不使用 larger runner、缓存或付费服务；中转 artifact 仅保留 3 天，并限制为本公开仓库执行。
 
@@ -44,6 +44,6 @@ Mac 包只有 ad-hoc 签名，没有 Developer ID 和 Apple 公证；Windows 包
 
 ## 同一发布页的资产
 
-两份 ZIP 分别配 `MACOS-SHA256SUMS` / `WINDOWS-SHA256SUMS` 和平台报告；共同 `SHA256SUMS` 包含两份 ZIP，`RELEASE-MANIFEST.json` 记录共同源码及全部选定资产的哈希。发布说明自动提供两个直接下载入口，旧 Release 及其资产保留。
+Mac ZIP 与 Windows 单 EXE 分别配 `MACOS-SHA256SUMS` / `WINDOWS-SHA256SUMS` 和平台报告；共同 `SHA256SUMS` 包含 Mac ZIP 与 Windows EXE，`RELEASE-MANIFEST.json` 记录共同源码及全部选定资产的哈希。发布说明自动提供两个直接下载入口，旧 Release 及其资产保留。
 
 测试和构建 job 只有 `contents: read`；发布 job 才有 `contents: write`，使用本次临时 GITHUB_TOKEN，无新凭据。发布先建 draft，资产上传成功后才公开；若发布阶段失败留下 draft，核对对应 run 后处理，不覆盖既有预览版本。

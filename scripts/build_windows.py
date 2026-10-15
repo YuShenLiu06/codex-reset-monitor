@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build Windows x64 ZIP on Windows only. Never publish, authenticate or send."""
+"""Build Windows x64 single EXE on Windows only. Never publish, authenticate or send."""
 import argparse
 import hashlib
 import importlib.metadata
@@ -93,8 +93,12 @@ def main(deps,output):
     with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED) as bundle:
         for path in sorted(package.rglob('*')):
             if path.is_file():bundle.write(path,path.relative_to(package.parent).as_posix())
-    (output/'WINDOWS-SHA256SUMS').write_text(hashlib.sha256(archive.read_bytes()).hexdigest()+'  '+archive.name+'\n',encoding='utf-8')
-    print(archive)
+    # Keep the equivalent ZIP only as an internal inspection/comparison artifact.
+    from scripts.windows_payload import build_exe
+    executable=output/'codex-reset-installer-windows-x64-preview.exe'
+    build_exe(package,work,executable,commit)
+    (output/'WINDOWS-SHA256SUMS').write_text(hashlib.sha256(executable.read_bytes()).hexdigest()+'  '+executable.name+'\n',encoding='utf-8')
+    print(executable)
 
 
 if __name__=='__main__':

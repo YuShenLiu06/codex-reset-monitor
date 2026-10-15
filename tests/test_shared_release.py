@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 import zipfile
-from scripts.release_assets import (MAC_ZIP, WINDOWS_ZIP, WINDOWS_ROOT, MAC_CHECKS,
+from scripts.release_assets import (MAC_ZIP, WINDOWS_ZIP, WINDOWS_EXE, WINDOWS_ROOT, MAC_CHECKS,
                                    assemble, check_windows_report, inspect_windows)
 from scripts.verify_macos_release import APP, PUBLIC_RESOURCE
 
@@ -18,6 +18,7 @@ LOGO_SHA=hashlib.sha256(LOGO).hexdigest()
 def windows_report(archive_sha):
     modes=[{'mode':mode,'passed':True,'forced':False,'doneCode':0,'finished':mode in ('full','resume'),
             'sawResume':mode=='resume'} for mode in ('startup','full','cancel','resume')]
+    from scripts.windows_payload import inspect_exe
     return {'source_commit':SHA,'archive_sha256':archive_sha,'tests':modes}
 
 
@@ -59,17 +60,32 @@ class SharedReleaseTest(unittest.TestCase):
                 bundle.writestr(PUBLIC_RESOURCE,json.dumps(PUBLIC))
                 for name in ('Python.txt','GitHub-CLI.txt'):
                     bundle.writestr(APP+'/Contents/Resources/licenses/'+name,b'license '*30)
-            for directory,name,sums in ((mac,MAC_ZIP,'SHA256SUMS'),(windows,WINDOWS_ZIP,'WINDOWS-SHA256SUMS')):
+            from scripts.windows_payload import manifest,FOOTER,MAGIC,inspect_exe
+            entries=[];packed=bytearray()
+            with zipfile.ZipFile(windows/WINDOWS_ZIP) as bundle:
+                for name in bundle.namelist():
+                    data=bundle.read(name);entries.append((name.removeprefix(WINDOWS_ROOT+'/'),len(data),len(data),len(packed),hashlib.sha256(data).hexdigest()));packed+=data
+            metadata=manifest(entries);prefix=b'MZsynthetic-native-launcher'
+            (windows/WINDOWS_EXE).write_bytes(prefix+packed+metadata+FOOTER.pack(len(prefix)+len(packed),len(metadata),len(prefix),len(packed),MAGIC))
+            for directory,name,sums in ((mac,MAC_ZIP,'SHA256SUMS'),(windows,WINDOWS_EXE,'WINDOWS-SHA256SUMS')):
                 value=hashlib.sha256((directory/name).read_bytes()).hexdigest()
                 (directory/sums).write_text(value+'  '+name+'\n')
             (mac/'BUILD-CHECKS.json').write_text(json.dumps({'source_commit':SHA,'public_app':PUBLIC,
                 'public_app_bundled':True,'logo_sha256':LOGO_SHA,'checks':sorted(MAC_CHECKS)}))
-            win_sha=hashlib.sha256((windows/WINDOWS_ZIP).read_bytes()).hexdigest()
-            (windows/'WINDOWS-BUILD-CHECKS.json').write_text(json.dumps(windows_report(win_sha)))
-            # Evidence screenshots stay in the workflow artifact, outside public assets.
+            win_sha=hashlib.sha256((windows/WINDOWS_EXE).read_bytes()).hexdigest()
+            report=windows_report(win_sha)
+            report.update(asset=WINDOWS_EXE,manifest_sha256=inspect_exe(windows/WINDOWS_EXE)['manifest_sha256'],comparison={'measured':True},
+                single_exe_checks=['embedded-files-match-scanned-package','normal-no-argument-launch-and-close','empty-working-directory','Chinese-and-space-paths',
+                    'clean-PATH-no-Python-gh-dotnet','first-and-repeat-launch','cache-corruption-repair','prepare-cancel-cleanup-retry',
+                    'stale-preparation-cleanup','old-ZIP-to-EXE-progress-resume','previous-version-cache-retained','config-and-progress-retained','concurrent-launch',
+                    'embedded-manifest-corruption-rejected','reparse-point-rejected','bundled-gh'])
+            (windows/'WINDOWS-BUILD-CHECKS.json').write_text(json.dumps(report))
+            for name in ('startup/preparing.png','startup/welcome.png','full/device.png','full/final.png','cancel/final.png','resume/final.png'):
+                image=windows/'windows-evidence'/name;image.parent.mkdir(parents=True,exist_ok=True);image.write_bytes(b'\x89PNG\r\n\x1a\nsynthetic-unit-fixture')
+            # Unselected files stay outside public assets.
             (windows/'not-for-release.txt').write_text('synthetic evidence')
             output=root/'release';assets=assemble(mac,windows,output,SHA,PUBLIC,LOGO_SHA,'https://example.test/run')
-            self.assertEqual(len(assets),8)
+            self.assertEqual(len(assets),9)
             self.assertFalse((output/'not-for-release.txt').exists())
             self.assertEqual(len((output/'SHA256SUMS').read_text().splitlines()),2)
             manifest=json.loads((output/'RELEASE-MANIFEST.json').read_text())
