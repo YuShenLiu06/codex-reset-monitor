@@ -42,7 +42,7 @@ internal sealed class WorkerSession
         if (offline != null) { info.ArgumentList.Add("--offline-e2e"); info.ArgumentList.Add(offline); }
         process = new Process { StartInfo = info };
         if (!process.Start()) throw new IOException("WORKER_START_FAILED");
-        process.StandardInput.AutoFlush = true;
+        process.StandardInput.AutoFlush = true; process.StandardInput.NewLine = "\n";
         // Drain and discard stderr; it is never shown, logged or saved.
         Task errors = Task.Run(async () => { char[] data = new char[4096]; while (await process.StandardError.ReadAsync(data) > 0) { } });
         var buffer = new StringBuilder(); char[] chunk = new char[2048];
@@ -99,6 +99,7 @@ internal sealed class MainWindow : Window
     private string userCode = "";
     private string error = "";
     private string initial = "";
+    private string placeholder = "";
     private bool back;
     private List<(string Label, string Value)> choices = new();
     private List<Uri> links = new();
@@ -164,6 +165,7 @@ internal sealed class MainWindow : Window
         }));
         if (prompt != null && choices.Count == 0) {
             if (error != "") content.Children.Add(Text(error, 14, Brushes.Firebrick));
+            if (placeholder != "") content.Children.Add(Text(placeholder, 14, Brushes.SlateGray));
             field = new TextBox { Text = initial, FontSize = 17, Padding = new Thickness(10), Margin = new Thickness(0, 0, 0, 14) };
             field.KeyDown += async (_, e) => { if (e.Key == System.Windows.Input.Key.Enter && field.Text.Trim() != "") await Respond(field.Text); };
             content.Children.Add(field);
@@ -228,6 +230,7 @@ internal sealed class MainWindow : Window
             links.RemoveAll(u => u.AbsolutePath is "/login/device" or "/page/cli");
             title = message.GetProperty("title").GetString()!; detail = message.GetProperty("text").GetString()!;
             prompt = message.GetProperty("id").GetInt32(); initial = message.GetProperty("initial").GetString()!;
+            placeholder = message.GetProperty("placeholder").GetString()!;
             error = message.GetProperty("error").GetString()!; back = message.GetProperty("back").GetBoolean();
             choices = message.GetProperty("choices").EnumerateArray().Select(c => (c.GetProperty("label").GetString()!, c.GetProperty("value").GetString()!)).ToList();
             if (title == "上次保存中断了") sawResume = true;
@@ -249,6 +252,7 @@ internal sealed class MainWindow : Window
         else if (type == "done") { done = true; doneCode = message.GetProperty("code").GetInt32(); prompt = null; choices.Clear(); links.Clear(); }
         else throw new InvalidDataException("UI_RESPONSE_TYPE");
         Render();
+        if (testMode != null && userCode != "") Capture("device");
         if (testMode != null) _ = AdvanceTest(type, message.Clone());
     }
     private async Task Respond(string value)

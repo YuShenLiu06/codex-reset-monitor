@@ -43,6 +43,7 @@ def verify(directory,commit):
         for name in ('coreclr.dll','hostfxr.dll','hostpolicy.dll','PresentationFramework.dll','System.Private.CoreLib.dll'):
             assert (package/name).is_file(),name
         pe(package/'CodexResetInstaller.exe',2)  # GUI app, no terminal.
+        assert b'level="asInvoker"' in (package/'CodexResetInstaller.exe').read_bytes(), 'Must not request administrator'
         pe(package/'worker/reset-worker.exe',3)  # Console worker retains stdin/out.
         pe(package/'tools/gh.exe')
         assert list((package/'worker').rglob('python313.dll'))

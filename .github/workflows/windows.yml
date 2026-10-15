@@ -39,7 +39,13 @@ jobs:
           python-version: '3.13.16'
           architecture: x64
       - name: Windows offline core and protocol checks
-        run: python -m unittest discover -s tests -p test_windows.py -v
+        run: |
+          python -m unittest discover -s tests -p test_windows.py -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m unittest discover -s tests -p test_installer.py -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m unittest discover -s tests -p test_gui_worker.py -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Fetch and verify fixed official Windows build inputs
         run: python scripts/windows_dependencies.py "$env:RUNNER_TEMP/windows-deps"
       - name: Install hash-locked worker build dependencies
