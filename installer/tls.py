@@ -35,6 +35,7 @@ def bootstrap_tls():
 def public_tls_check():
     """Fixed public GETs only; never create a device session or use credentials."""
     import ssl
+    import urllib.error
     import urllib.request
     from monitor import NoRedirect
     context=ssl.create_default_context()
@@ -43,9 +44,15 @@ def public_tls_check():
     for host in ('github.com','api.github.com'):
         request=urllib.request.Request('https://'+host+'/',headers={'User-Agent':'CodexResetInstaller-TLS-check'})
         opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect(),urllib.request.HTTPSHandler(context=context))
-        with opener.open(request,timeout=15) as response:
-            if response.status!=200:raise RuntimeError('PUBLIC_TLS_CHECK_FAILED')
-            results.append({'host':host,'http_status':response.status})
+        try:response=opener.open(request,timeout=15)
+        except urllib.error.HTTPError as exc:
+            # A shared runner can exhaust GitHub's unauthenticated API quota.
+            # Its verified HTTPS response proves TLS, not functional API access.
+            if host!='api.github.com' or exc.code!=403 or exc.headers.get('X-RateLimit-Remaining')!='0':raise
+            response=exc
+        with response:
+            results.append({'host':host,'http_status':response.status,'http_success':response.status==200,
+                            'rate_limited':response.status==403})
     print(json.dumps({'native_system_trust':True,'certificate_verification':True,'hostname_verification':True,
         'public_gets':results,'oauth_requests':0}),flush=True)
     return 0

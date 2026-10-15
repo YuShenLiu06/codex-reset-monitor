@@ -11,7 +11,7 @@ import urllib.error
 from installer import github_api as api
 from installer.core import device_authorize
 from installer.gui_worker import GUI
-from installer.tls import bootstrap_tls,configure_native_trust
+from installer.tls import bootstrap_tls,configure_native_trust,public_tls_check
 
 URL='https://github.com/login/device/code'
 SECRET='private-device-token-cookie-value'
@@ -89,6 +89,17 @@ class OAuthTransportTest(unittest.TestCase):
         self.assertFalse(json.loads(out.getvalue())['retry_device'])
 
 class NativeTrustTest(unittest.TestCase):
+    def test_verified_public_tls_does_not_misreport_shared_runner_rate_limit(self):
+        opener=Mock();opener.open.side_effect=[Response(status=200),urllib.error.HTTPError(
+            'https://api.github.com/',403,'rate limit',{'X-RateLimit-Remaining':'0'},io.BytesIO(b'private response omitted'))]
+        output=io.StringIO()
+        with patch.object(api.urllib.request,'build_opener',return_value=opener),patch('sys.stdout',output):
+            self.assertEqual(public_tls_check(),0)
+        report=json.loads(output.getvalue());self.assertTrue(report['certificate_verification'])
+        self.assertEqual(report['public_gets'][1]['http_status'],403)
+        self.assertFalse(report['public_gets'][1]['http_success']);self.assertTrue(report['public_gets'][1]['rate_limited'])
+        self.assertEqual(report['oauth_requests'],0)
+
     def test_source_and_actions_do_not_require_desktop_dependency(self):
         self.assertEqual(configure_native_trust(),'platform-default')
     def test_frozen_entry_uses_native_system_trust_and_keeps_verification(self):
