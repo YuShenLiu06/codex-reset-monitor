@@ -37,6 +37,9 @@ def main(mac_directory,windows_directory):
         raise SystemExit('Write concise version-specific notes with a DOWNLOADS placeholder')
     download=f'https://github.com/{repository}/releases/download/{tag}/'
     notes=notes.replace('{{DOWNLOADS}}',f'- [Mac Apple 芯片（ZIP）]({download}{MAC_ZIP})\n- [Windows 64 位（单 EXE）]({download}{WINDOWS_EXE})')
+    comparison=json.loads((Path(windows_directory)/'WINDOWS-BUILD-CHECKS.json').read_text())['comparison']
+    current=comparison['single_exe'];previous=comparison['baseline_zip']
+    repeated=' / '.join(f"{value:.2f}" for value in current['repeat_interactive_seconds'])
     notes+=f'''
 
 <details>
@@ -47,6 +50,8 @@ def main(mac_directory,windows_directory):
 两平台复用同一份[公开 App 配置](https://github.com/{repository}/blob/{sha}/macos/public-app.json)，不含凭据。公开 API 已核对标识及五项最小权限；跨账号完整安装、Device Flow 设置仍待实际验收。程序保留实际权限检查，不自动扩大安装范围。
 
 [构建和解包检查](https://github.com/{repository}/actions/runs/{os.environ['GITHUB_RUN_ID']}) · [对应源码](https://github.com/{repository}/tree/{sha})
+
+本次 Windows 标准 runner 实测（不代表用户电脑速度）：单 EXE {current['bytes']/1_000_000:.2f} MB，旧 ZIP {previous['bytes']/1_000_000:.2f} MB。首次准备窗口 {current['first_visible_seconds']:.2f} 秒、首次可交互设置窗口 {current['first_interactive_seconds']:.2f} 秒，再次 {repeated} 秒。旧 ZIP 解压加首次可交互共 {previous['first_unzip_plus_launch_seconds']:.2f} 秒；旧版单独启动数据与环境见报告。均不含下载，首启为空应用缓存，未清空系统磁盘缓存。
 
 下方 SHA256SUMS 包含 Mac ZIP 与 Windows EXE；RELEASE-MANIFEST.json 记录两平台共同源码与资产哈希。BUILD-CHECKS.json / WINDOWS-BUILD-CHECKS.json 保留各平台实际运行证据；Windows 的完整、取消和恢复使用离线模拟服务，不代替真实账号或通知验收。
 

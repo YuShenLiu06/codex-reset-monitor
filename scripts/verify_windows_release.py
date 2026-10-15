@@ -93,6 +93,16 @@ def verify(directory,commit):
     assert (directory/'WINDOWS-SHA256SUMS').read_text(encoding='utf-8').strip()==checksum+'  '+EXE
     evidence=directory/'windows-evidence';evidence.mkdir(exist_ok=True)
     pe(executable,2);raw=executable.read_bytes();assert b'level="asInvoker"' in raw
+    import ctypes
+    version=ctypes.WinDLL('version',use_last_error=True)
+    version.GetFileVersionInfoSizeW.argtypes=[ctypes.c_wchar_p,ctypes.c_void_p]
+    version.GetFileVersionInfoW.argtypes=[ctypes.c_wchar_p,ctypes.c_uint32,ctypes.c_uint32,ctypes.c_void_p]
+    version.VerQueryValueW.argtypes=[ctypes.c_void_p,ctypes.c_wchar_p,ctypes.POINTER(ctypes.c_void_p),ctypes.POINTER(ctypes.c_uint)]
+    length=version.GetFileVersionInfoSizeW(str(executable),None);assert length>0
+    info=ctypes.create_string_buffer(length);assert version.GetFileVersionInfoW(str(executable),0,length,info)
+    fixed=ctypes.c_void_p();size=ctypes.c_uint()
+    assert version.VerQueryValueW(info,'\\',ctypes.byref(fixed),ctypes.byref(size))
+    values=struct.unpack('<13I',ctypes.string_at(fixed,52));assert values[0]==0xFEEF04BD and values[2:4]==(1,5<<16)
     payload=inspect_exe(executable)
     public=json.loads((ROOT/'macos/public-app.json').read_text())
     inspect_windows(directory/WINDOWS_ZIP,commit,public,digest(ROOT/'assets/logo-v1.png'))
