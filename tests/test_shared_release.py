@@ -75,7 +75,7 @@ class SharedReleaseTest(unittest.TestCase):
             win_sha=hashlib.sha256((windows/WINDOWS_EXE).read_bytes()).hexdigest()
             report=windows_report(win_sha)
             report.update(asset=WINDOWS_EXE,manifest_sha256=inspect_exe(windows/WINDOWS_EXE)['manifest_sha256'],comparison={'measured':True},
-                single_exe_checks=['embedded-files-match-scanned-package','empty-working-directory','Chinese-and-space-paths',
+                single_exe_checks=['embedded-files-match-scanned-package','normal-no-argument-launch-and-close','empty-working-directory','Chinese-and-space-paths',
                     'clean-PATH-no-Python-gh-dotnet','first-and-repeat-launch','cache-corruption-repair','prepare-cancel-cleanup-retry',
                     'stale-preparation-cleanup','old-ZIP-to-EXE-progress-resume','previous-version-cache-retained','config-and-progress-retained','concurrent-launch',
                     'embedded-manifest-corruption-rejected','reparse-point-rejected','bundled-gh'])

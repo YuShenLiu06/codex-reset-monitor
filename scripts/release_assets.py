@@ -78,7 +78,7 @@ def inspect_windows_exe(executable,archive,report):
     payload=inspect_exe(executable)
     if report.get('asset')!=WINDOWS_EXE or report.get('manifest_sha256')!=payload['manifest_sha256']:
         raise ValueError('Single EXE identity mismatch')
-    required={'embedded-files-match-scanned-package','empty-working-directory','Chinese-and-space-paths',
+    required={'embedded-files-match-scanned-package','normal-no-argument-launch-and-close','empty-working-directory','Chinese-and-space-paths',
         'clean-PATH-no-Python-gh-dotnet','first-and-repeat-launch','cache-corruption-repair','prepare-cancel-cleanup-retry',
         'stale-preparation-cleanup','old-ZIP-to-EXE-progress-resume','previous-version-cache-retained','config-and-progress-retained','concurrent-launch',
         'embedded-manifest-corruption-rejected','reparse-point-rejected','bundled-gh'}

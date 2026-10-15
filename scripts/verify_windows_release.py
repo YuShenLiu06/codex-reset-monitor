@@ -59,6 +59,34 @@ def bootstrap(executable,mode,output,root,environment,expected=0):
     return report
 
 
+
+def normal_launch(executable,root,environment):
+    import ctypes
+    from ctypes import wintypes
+    user=ctypes.WinDLL('user32',use_last_error=True)
+    callback_type=ctypes.WINFUNCTYPE(wintypes.BOOL,wintypes.HWND,wintypes.LPARAM)
+    user.GetWindowTextW.argtypes=[wintypes.HWND,wintypes.LPWSTR,ctypes.c_int]
+    user.PostMessageW.argtypes=[wintypes.HWND,wintypes.UINT,wintypes.WPARAM,wintypes.LPARAM]
+    found=[]
+    def visit(handle,unused):
+        text=ctypes.create_unicode_buffer(256);user.GetWindowTextW(handle,text,256)
+        if text.value=='Codex 提醒设置 · Windows 测试版':found.append(handle)
+        return True
+    callback=callback_type(visit);user.EnumWindows.argtypes=[callback_type,wintypes.LPARAM]
+    process=subprocess.Popen([str(executable)],cwd=root,env=environment)
+    deadline=time.monotonic()+90
+    try:
+        while not found:
+            assert process.poll() is None,('normal launch ended',process.returncode)
+            user.EnumWindows(callback,0)
+            if time.monotonic()>deadline:raise AssertionError('normal window timeout')
+            time.sleep(.02)
+        user.PostMessageW(found[0],0x0010,0,0)  # Close untouched welcome; no Start click or account access.
+        assert process.wait(timeout=15)==0
+    finally:
+        if process.poll() is None:process.kill()
+
+
 def verify(directory,commit):
     assert sys.platform=='win32','Run the actual release on Windows'
     directory=Path(directory).resolve();executable=directory/EXE;checksum=digest(executable)
@@ -91,6 +119,8 @@ def verify(directory,commit):
         cold=json.loads((evidence/'startup/BOOTSTRAP.json').read_text());assert not cold['reused']
         cached=next((state_dir/'packages').iterdir());assert (cached/'BUILD-INFO.json').is_file()
         assert json.loads((cached/'BUILD-INFO.json').read_text())['source_commit']==commit
+        assert not (state_dir/'state.local.json').exists()
+        normal_launch(app,empty,environment)
         assert not (state_dir/'state.local.json').exists()
         warm=[ui(app,'startup',evidence/f'warm-{i}',empty,environment)['interactive_seconds'] for i in range(2)]
         assert all(json.loads((evidence/f'warm-{i}/BOOTSTRAP.json').read_text())['reused'] for i in range(2))
@@ -166,7 +196,7 @@ def verify(directory,commit):
                 'first_unzip_plus_launch_seconds':round(unzip+old[0],4)}}
     checks={'source_commit':commit,'archive_sha256':checksum,'asset':EXE,'manifest_sha256':payload['manifest_sha256'],
         'platform':'real Windows x64 standard runner','tests':results,'comparison':comparison,
-        'single_exe_checks':['embedded-files-match-scanned-package','empty-working-directory','Chinese-and-space-paths',
+        'single_exe_checks':['embedded-files-match-scanned-package','normal-no-argument-launch-and-close','empty-working-directory','Chinese-and-space-paths',
             'clean-PATH-no-Python-gh-dotnet','first-and-repeat-launch','cache-corruption-repair','prepare-cancel-cleanup-retry',
             'stale-preparation-cleanup','old-ZIP-to-EXE-progress-resume','previous-version-cache-retained','config-and-progress-retained','concurrent-launch',
             'embedded-manifest-corruption-rejected','reparse-point-rejected','bundled-gh'],
