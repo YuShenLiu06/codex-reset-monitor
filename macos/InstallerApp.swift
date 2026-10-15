@@ -139,6 +139,7 @@ struct Choice: Identifiable { let id = UUID(); let label: String; let value: Str
                         let root=URL(fileURLWithPath:CommandLine.arguments[index+2])
                         captureOffline(root.appendingPathComponent("stopped.png"))
                         try? Data(detail.utf8).write(to:root.appendingPathComponent("stopped.txt"))
+                        DispatchQueue.main.asyncAfter(deadline:.now()+1.5) { NSApplication.shared.terminate(nil) }
                     }
                 }
             } else if type == "done" {
@@ -278,6 +279,7 @@ struct ContentView: View {
         }
         .padding(32).frame(width:660,height:490).background(Color(NSColor.windowBackgroundColor))
         .onAppear {
+            if CommandLine.arguments.contains("--offline-ui-check") { NSApplication.shared.activate(ignoringOtherApps:true) }
             if CommandLine.arguments.contains("--smoke-start") { wizard.start() }
             if let index = CommandLine.arguments.firstIndex(of: "--capture"), CommandLine.arguments.count > index + 1 {
                 let destination = CommandLine.arguments[index + 1]

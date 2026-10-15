@@ -22,7 +22,9 @@ def verify(archive,evidence):
         for mode in ('post-device','post-device-missing'):
             case=evidence/mode;case.mkdir(exist_ok=True)
             (case/'public-source.json').write_text(json.dumps(snapshot(info['deployment_manifest_commit'])))
-            command=[str(app/'Contents/MacOS/CodexResetInstaller'),'--offline-device',mode,str(case),'--offline-ui-check','--smoke-start']
+            # LaunchServices supplies the normal GUI application lifecycle.
+            # Running the Mach-O directly can leave a SwiftUI scene unopened.
+            command=['/usr/bin/open','-n','-W',str(app),'--args','--offline-device',mode,str(case),'--offline-ui-check','--smoke-start']
             with (case/'process.log').open('w') as log:
                 process=subprocess.Popen(command,cwd=root,stdout=log,stderr=subprocess.STDOUT)
                 try:
