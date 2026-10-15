@@ -212,6 +212,7 @@ class GUI:
             'DEVICE_SESSION_REJECTED':'GitHub 没有接受这次连接申请。请联系维护者核对现有应用。',
             'TLS_TRUST_UNAVAILABLE':'无法启用系统证书校验。请重新下载完整测试包。'}
         messages.update({
+            'MONITOR_ALREADY_ENABLED':'这个仓库已经开启提醒。为保留现有运行状态，本次停在检查，不会重新写入机器人设置。使用现有提醒可以直接关闭窗口。',
             'PROJECT_FILES_MISSING':'测试包与目标仓库版本不匹配，目标缺少清单中的文件。请使用与该仓库配对的测试包；程序没有覆盖代码。',
             'PROJECT_FILES_MISMATCH':'目标仓库文件与此安装包审核的版本不同。请联系维护者核对匹配版本；程序没有覆盖代码。',
             'WORKFLOW_UNAVAILABLE':'GitHub 尚未提供目标工作流。新复制的仓库可能需要先在仓库 Actions 页面启用工作流；也可能是访问范围或策略限制。请核对后再继续，不要扩大权限。',
