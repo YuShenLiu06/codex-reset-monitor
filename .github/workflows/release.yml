@@ -59,16 +59,17 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/build-venv"
           "$RUNNER_TEMP/build-venv/bin/python" -m pip install --require-hashes --only-binary=:all: -r macos/build-requirements.txt
           python3 scripts/release_dependencies.py "$RUNNER_TEMP/release-deps"
-      - name: Build self-contained preview without App configuration
+      - name: Build self-contained owner preview with reviewed public App fields
         run: |
           bundle_version="${RELEASE_TAG#v}"
           bundle_version="${bundle_version%%-preview.*}"
           "$RUNNER_TEMP/build-venv/bin/python" scripts/build_macos.py \
             --output runtime/release-assets --version "$bundle_version" \
             --gh "$RUNNER_TEMP/release-deps/gh/bin/gh" \
-            --python-license "$RUNNER_TEMP/release-deps/Python-LICENSE.txt"
+            --python-license "$RUNNER_TEMP/release-deps/Python-LICENSE.txt" \
+            --public-config macos/public-app.json
       - name: Scan ZIP, extract, verify signatures and smoke frozen worker offline
-        run: python3 scripts/verify_macos_release.py runtime/release-assets "$GITHUB_SHA"
+        run: python3 scripts/verify_macos_release.py runtime/release-assets "$GITHUB_SHA" --public-config macos/public-app.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: macos-arm64-preview

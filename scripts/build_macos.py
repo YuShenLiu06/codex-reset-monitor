@@ -13,7 +13,7 @@ import sys
 import zipfile
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from installer.core import expected_manifest
-from installer.registration import public_config
+from installer.registration import public_config, load as load_public_config
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -54,9 +54,18 @@ def build(output,gh,public=None,version='0.1.3',python_license=None):
         if previous.get('CFBundleIdentifier')!='com.yushen.codex-reset-installer.local':raise SystemExit('Refusing to replace an unrelated app')
         shutil.rmtree(app)
     binary.mkdir(parents=True);resources.mkdir()
-    icon_builder=work/'make-app-icon';iconset=work/'AppIcon.iconset'
-    run(['swiftc','-module-cache-path',work/'module-cache',ROOT/'macos/AppIcon.swift','-o',icon_builder])
-    run([icon_builder,iconset])
+    iconset=work/'AppIcon.iconset';logo=ROOT/'assets/logo-v1.png'
+    if logo.is_file():
+        iconset.mkdir(exist_ok=True)
+        for size in (16,32,128,256,512):
+            for scale in (1,2):
+                suffix='@2x' if scale==2 else ''
+                run(['/usr/bin/sips','-z',size*scale,size*scale,logo,'--out',iconset/f'icon_{size}x{size}{suffix}.png'])
+        shutil.copy2(logo,resources/'ProjectLogo.png')
+    else:
+        icon_builder=work/'make-app-icon'
+        run(['swiftc','-module-cache-path',work/'module-cache',ROOT/'macos/AppIcon.swift','-o',icon_builder])
+        run([icon_builder,iconset])
     run(['/usr/bin/iconutil','-c','icns',iconset,'-o',resources/'AppIcon.icns'])
     shutil.copytree(work/'dist/reset-worker',resources/'worker',symlinks=True)
     (resources/'tools').mkdir();shutil.copy2(gh,resources/'tools/gh');(resources/'tools/gh').chmod(0o755)
@@ -79,7 +88,9 @@ def build(output,gh,public=None,version='0.1.3',python_license=None):
     run(['swiftc','-parse-as-library','-target','arm64-apple-macos13.0','-module-cache-path',work/'module-cache',
          ROOT/'macos/InstallerApp.swift','-o',binary/'CodexResetInstaller'])
     (resources/'BUILD-INFO.json').write_text(json.dumps({'purpose':'preview; ad-hoc signature only; NOT notarized',
-        'architecture':'arm64','source_commit':subprocess.run(['git','rev-parse','HEAD'],cwd=ROOT,capture_output=True,text=True,check=True).stdout.strip(),'python':sys.version.split()[0],'gh':gh_version,'public_app_bundled':public is not None},indent=2))
+        'architecture':'arm64','source_commit':subprocess.run(['git','rev-parse','HEAD'],cwd=ROOT,capture_output=True,text=True,check=True).stdout.strip(),'python':sys.version.split()[0],'gh':gh_version,'public_app_bundled':public is not None,
+        'public_app':public_config(public['client_id'],public['app_slug']) if public else None,
+        'logo_sha256':hashlib.sha256(logo.read_bytes()).hexdigest() if logo.is_file() else None},indent=2))
     # Finder may decorate generated .app/framework folders in Documents. Remove
     # only build-output Finder metadata; never remove quarantine or security attrs.
     subprocess.run(['xattr','-dr','com.apple.FinderInfo',str(app)],check=False,capture_output=True)
@@ -104,6 +115,10 @@ if __name__=='__main__':
     parser.add_argument('--output',type=Path,default=ROOT/'runtime/macos-build/output')
     parser.add_argument('--gh',required=True,type=Path);parser.add_argument('--client-id');parser.add_argument('--app-slug')
     parser.add_argument('--version',default='0.1.3');parser.add_argument('--python-license',type=Path)
+    parser.add_argument('--public-config',type=Path,help='Reviewed public-only config; exactly version/client_id/app_slug')
     args=parser.parse_args()
     if bool(args.client_id)!=bool(args.app_slug):parser.error('Public client ID and slug are required together')
-    build(args.output,args.gh,{'client_id':args.client_id,'app_slug':args.app_slug} if args.client_id else None,args.version,args.python_license)
+    if args.public_config and args.client_id:parser.error('Choose a config file or explicit public fields')
+    public=load_public_config(args.public_config) if args.public_config else ({'client_id':args.client_id,'app_slug':args.app_slug} if args.client_id else None)
+    if args.public_config and public is None:parser.error('Reviewed public config file is missing')
+    build(args.output,args.gh,public,args.version,args.python_license)

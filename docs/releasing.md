@@ -9,8 +9,9 @@
 1. Ubuntu 运行离线测试，核对版本格式与源码属于 main。
 2. 标准 `macos-15` arm64 runner 测试原生界面协议，构建自包含 `.app`。
 3. 扫描 ZIP，检查私有配置、常见凭据格式与个人路径；解压后核验签名、架构和执行权限。
-4. 在禁止网络的 sandbox 中启动打包后的 worker，验证缺 App 配置的初始化和取消，不打开窗口或连接真实账号。
-5. 全部通过后，用独立发布 job 创建标为 **Pre-release、未公证** 的 GitHub Release，附 ZIP、SHA256SUMS 和 BUILD-CHECKS.json。
+4. 在禁止网络的 sandbox 中启动打包后的 worker，验证公开配置载入与安全取消，不打开窗口或连接真实账号。
+5. 由原始[项目 logo](../assets/logo-v1.png)只做系统尺寸转换生成 ICNS，检查 bundle 图标配置，并让真实 App 在不显示窗口的模式加载 application/Dock 图标。
+6. 全部通过后，用独立发布 job 创建标为 **Pre-release、未公证** 的 GitHub Release，附 ZIP、SHA256SUMS 和 BUILD-CHECKS.json。
 
 标准 `macos-15` 当前为 M1 arm64、3 核、7 GB 内存。[GitHub 官方 runner 表](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)列出该配置；公开仓库使用标准 runner 免费。[计费规则](https://docs.github.com/en/billing/concepts/product-billing/github-actions)不包含免费 larger runner。本 workflow 不使用 larger runner、缓存或付费服务；中转 artifact 仅保留 3 天，并限制为本公开仓库执行。
 
@@ -29,9 +30,9 @@
 
 ## 公开包的边界
 
-Actions 从干净 checkout 构建，命令不传 `--client-id` / `--app-slug`，不读取个人机器。App 内只加入生成的可信文件清单；禁止捆绑 `public_app.json`、本地进度、配置、账号截图或密钥。扫描用于拦截常见泄漏，不能证明任意形式的秘密都不存在。
+Actions 从干净 checkout 构建，通过 `--public-config macos/public-app.json` 读取已提交并可审查的公开标识，不读取个人机器。App 内加入生成的可信文件清单和经所有者授权的[公开配置](../macos/public-app.json)，只允许 `version/client_id/app_slug` 三项；拒绝 Secret、私钥、token、其他配置、本地进度与账号截图。扫描用于拦截常见泄漏，不能证明任意形式的秘密都不存在。
 
-公开包缺 App 配置时显示现有初始化引导，由维护者按[注册与权限说明](github-app-maintainer.md)操作。共享 App 配置尚未公开，因此不能承诺普通用户只授权就能安装完成。未来内置共享配置需单独审查，不从用户个人 App 自动复制。
+当前包复用所有者明确授权的 `codex-reset-installer`，首次无需重复创建 App。只读公开 API 返回 404，现有 CLI 授权不能读取 App 安装记录；Any account、Device Flow 和当前注册权限尚未核实，所以本包定位为 **App 所有者预览**，不宣称所有账号可安装。实际使用仍核验 actions/actions_variables/secrets:write、contents/metadata:read，不扩权。更改 App 可安装范围需所有者另行确认。缺配置的开发构建仍保留初始化引导，见[注册与权限说明](github-app-maintainer.md)。
 
 包只有 ad-hoc 签名，没有 Developer ID 和 Apple 公证。系统可能拦截；不要关闭 Gatekeeper。构建、解包和离线 worker smoke 不能替代真实 GitHub/飞书账号的[完整验收](user-acceptance.md)。
 

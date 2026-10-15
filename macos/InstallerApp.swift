@@ -233,8 +233,15 @@ struct ContentView: View {
 }
 @main struct InstallerApp: App {
     init() {
+        var loadedProjectIcon = false
         if let icon = Bundle.main.url(forResource:"AppIcon",withExtension:"icns"), let image = NSImage(contentsOf:icon) {
             NSApplication.shared.applicationIconImage = image
+            loadedProjectIcon = image.isValid
+        }
+        if CommandLine.arguments.contains("--check-icon") {
+            guard loadedProjectIcon, NSApplication.shared.applicationIconImage?.isValid == true else { exit(1) }
+            print("Bundled project icon and application/Dock icon loaded")
+            exit(0)
         }
     }
     var body: some Scene {

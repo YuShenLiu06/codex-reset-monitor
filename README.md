@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/logo-v1.png" width="112" alt="Codex 提前重置提醒：重置箭头与铃铛"></p>
+
 # Codex 提前重置提醒
 
 **Codex 额度可能提前重置时，给你发一条飞书提醒。**
@@ -20,11 +22,11 @@
 
 ## 怎么下载／开始
 
-**现在还没有正式安装包。** [Releases 页面](https://github.com/YuShenLiu06/codex-reset-monitor/releases)目前没有发布版本；GitHub 的「Download ZIP」是源码，不是安装包。
+**已有开发预览包：[下载 Mac Apple 芯片版（ZIP）](https://github.com/YuShenLiu06/codex-reset-monitor/releases/download/v0.1.3-preview.1/codex-reset-installer-macos-arm64-preview.zip)**。版本限制与校验文件见[发布页](https://github.com/YuShenLiu06/codex-reset-monitor/releases/tag/v0.1.3-preview.1)。GitHub 的「Download ZIP」是源码，不是安装包。
 
-目前只有 **Mac Apple 芯片（arm64）本机测试包**。它未完成 Apple 公证，完整真实流程仍待验收。普通用户请等待正式发布；Intel Mac、Windows 暂无可推荐的双击安装包。
+适用于 **Mac Apple 芯片（arm64）**，内置 Python / gh。它没有 Developer ID 签名或 Apple 公证，完整真实流程仍待验收，可能被系统拦截。当前版本缺 App 配置，需要维护者首次初始化；普通用户请等待完整发行版。Intel Mac、Windows 暂无安装包。
 
-正式版计划这样开始（**当前尚不可作为下载教程**）：
+预览版开始方式（先完成维护者配置，详见[验收清单](docs/user-acceptance.md)）：
 
 ```mermaid
 flowchart TD
@@ -57,7 +59,7 @@ flowchart TD
 
 | 问题 | 下一步 |
 |---|---|
-| 找不到安装包 | 正式版尚未发布，先等待；不要下载源码 ZIP 当安装包。 |
+| 下载后找不到 .app | 解压上方预览版 ZIP；不要把源码 ZIP 当安装包。 |
 | Mac 拦住测试包 | 暂停，向维护者确认包的来源与状态；不要关闭系统安全保护。 |
 | 窗口要求填 Client ID 或 App 地址 | 测试包缺少公开配置，联系维护者；普通用户不必自行注册安装器 App。 |
 | 授权或权限检查没通过 | 按窗口提示核对目标账号、仓库和权限；详细见[验收与恢复](docs/user-acceptance.md#失败恢复)。 |
@@ -69,6 +71,7 @@ flowchart TD
 <summary>维护者与高级用户文档</summary>
 
 - [GitHub App 注册与权限](docs/github-app-maintainer.md)
+- [用 Actions 构建与发布](docs/releasing.md)
 - [macOS 构建方案与当前测试状态](docs/macos-installer-plan.md)
 - [安装器授权、安全与打包审查](docs/installer-review.md)
 - [手动部署、去重机制与故障恢复](docs/operations.md)
