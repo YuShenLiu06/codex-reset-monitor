@@ -109,7 +109,7 @@ class GUI:
         from installer.registration import public_config
         slug=public_config('Iv1.ValidationID',slug)['app_slug']
         names={'actions':'Actions（运行检查）','secrets':'Secrets（保存加密设置）',
-               'variables':'Variables（开关设置）','contents':'Contents（读取代码）',
+               'actions_variables':'Variables（开关设置）','contents':'Contents（读取代码）',
                'metadata':'Metadata（仓库基本信息）','administration':'Administration（管理仓库）',
                'workflows':'Workflows（修改工作流）','unknown_permission':'未识别的额外权限',
                'permissions':'权限字段','additional_permissions':'还有其他额外权限（已省略）'}

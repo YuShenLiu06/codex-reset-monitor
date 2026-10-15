@@ -10,7 +10,7 @@ class RegistrationTest(unittest.TestCase):
     def test_official_url_only_minimal_parameters(self):
         url=urlsplit(r.registration_url());self.assertEqual(url.netloc,'github.com')
         query=parse_qs(url.query)
-        for key,value in {'contents':'read','actions':'write','secrets':'write','variables':'write','webhook_active':'false','public':'false'}.items():self.assertEqual(query[key],[value])
+        for key,value in {'contents':'read','actions':'write','secrets':'write','actions_variables':'write','webhook_active':'false','public':'false'}.items():self.assertEqual(query[key],[value])
         self.assertEqual(parse_qs(urlsplit(r.registration_url(public=True)).query)['public'],['true'])
         self.assertNotIn('device_flow',query);self.assertNotIn('default_permissions',query)
     def test_validate_public_config_rejects_secrets_and_bad_urls(self):

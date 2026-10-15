@@ -9,7 +9,7 @@
     "metadata": "read",
     "actions": "write",
     "secrets": "write",
-    "variables": "write"
+    "actions_variables": "write"
   },
   "default_events": [],
   "request_oauth_on_install": false,

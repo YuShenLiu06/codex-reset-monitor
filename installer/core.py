@@ -18,7 +18,7 @@ from feishu_app import APP_SECRET_NAMES
 
 SOURCE_REPOSITORY='YuShenLiu06/codex-reset-monitor'
 PROJECT_ID='codex-reset-monitor:24h-feishu:v1'
-REQUIRED_PERMISSIONS={'contents':'read','metadata':'read','actions':'write','secrets':'write','variables':'write'}
+REQUIRED_PERMISSIONS={'contents':'read','metadata':'read','actions':'write','secrets':'write','actions_variables':'write'}
 TRUSTED_FILES=('project.json','monitor.py','github_state.py','feishu_app.py','bootstrap_state.py',
                '.github/workflows/monitor.yml','.github/workflows/prepare.yml','.github/workflows/ci.yml',
                'acceptance.py','.github/workflows/acceptance.yml')
@@ -133,7 +133,7 @@ def verify_installation_permissions(actual):
                 differences.append({'name':name,'actual':value if value in ('read','write','none') else ('missing' if name not in actual else 'invalid'),'expected':expected})
         for name,value in actual.items():
             if name not in REQUIRED_PERMISSIONS:
-                differences.append({'name':name if name in DIAGNOSTIC_PERMISSION_NAMES else 'unknown_permission',
+                differences.append({'name':name if isinstance(name,str) and re.fullmatch(r'[a-z][a-z0-9_]{0,63}',name) else 'unknown_permission',
                     'actual':value if value in ('read','write','none') else 'invalid','expected':'absent'})
     if differences:
         if len(differences)>32:

@@ -136,7 +136,7 @@ class GUISettingsURLTest(unittest.TestCase):
 class GUIInstallationRepairTest(unittest.TestCase):
     def test_permission_difference_and_official_recovery_links_are_actionable(self):
         from installer.core import REQUIRED_PERMISSIONS,verify_installation_permissions
-        try:verify_installation_permissions(dict(REQUIRED_PERMISSIONS,variables='read'))
+        try:verify_installation_permissions(dict(REQUIRED_PERMISSIONS,actions_variables='read'))
         except SetupError as error:
             helper=GUIInputRepairTest();gui,out=helper.gui(['retry'])
             self.assertEqual(gui.installation_issue(error,'codex-reset-installer'),'retry')

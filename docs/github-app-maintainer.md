@@ -23,7 +23,7 @@ GitHub 官方 manifest flow 可以向 `https://github.com/settings/apps/new` POS
 
 官方依据：[注册 GitHub App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app)、[manifest flow 与参数表](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-from-a-manifest)、[device flow](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app#using-the-device-flow-to-generate-a-user-access-token)。（字段与权限应在提交前再次核对官方页面。）
 
-安装器现在提供首次交互引导并打开[官方支持的 URL 预填注册页](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-using-url-parameters)，权限使用 contents=read、actions=write、secrets=write、variables=write。Device Flow 与 token 过期仍需本人核对。只保存公开 Client ID/slug，无 manifest code 交换、私钥或 client secret 采集。
+安装器现在提供首次交互引导并打开[官方支持的 URL 预填注册页](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-using-url-parameters)，权限使用 contents=read、actions=write、secrets=write、actions_variables=write。Device Flow 与 token 过期仍需本人核对。只保存公开 Client ID/slug，无 manifest code 交换、私钥或 client secret 采集。
 
 真实共享 App 创建后，维护者可用 build_release.py 的 --client-id 与 --app-slug 将已审查的公开两项内置进发行包；普通用户无需填写它们，也不会进入 App 注册向导。包内配置优先于本机旧配置，实际安装权限仍由 GitHub API 校验。当前包未内置虚假配置。
 
@@ -33,3 +33,10 @@ GitHub 官方 manifest flow 可以向 `https://github.com/settings/apps/new` POS
 URL 预填不能代替创建后核对。安装器严格要求 Actions/Secrets/Variables:write、Contents/Metadata:read，其他权限不申请。GUI 会逐项显示“当前 → 需要”，可打开“核对应用权限”和“核对仓库安装”，本人修正后回到同一窗口重新检查。仅重读远端状态，不重新发起 OAuth、不自动改权限、不重复写入或测试通知。旧安装接受权限更新之前，注册配置正确也不能证明安装已生效。
 
 缺 Variables 时只修正 Variables，不额外开启 Administration、Contents 写入或所有仓库范围。权限变更必须由本人确认。诊断仅包含固定权限名称及等级，原始响应和凭据不记录。
+
+
+## 原始权限字段契约
+
+GitHub 的界面名称 Variables 对应 API/manifest/URL 预填的原始键 **actions_variables**，不是 variables。五项原始字段固定为 contents:read、metadata:read、actions:write、secrets:write、actions_variables:write；metadata 由 GitHub 自动必需。HTTP 端点路径仍是 `/repos/OWNER/REPO/actions/variables`，不能从路径末尾推断权限键名。
+
+依据：[GitHub 官方权限映射数据](https://github.com/github/docs/blob/main/src/github-apps/data/fpt-2022-11-28/server-to-server-permissions.json)，其 actions_variables 项把标题 Variables 与仓库变量端点绑定。2026-10-15 已通过只读实际 App 注册页 DOM 验证 `integration[default_permissions][actions_variables]` 及页面读写等级。此前 variables 键错误同时影响注册预填与安装校验，不能要求用户重复授权来修正程序字段名。

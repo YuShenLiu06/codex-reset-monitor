@@ -1,0 +1,72 @@
+{
+  "source": "https://github.com/github/docs/blob/main/src/github-apps/data/fpt-2022-11-28/server-to-server-permissions.json",
+  "verified_from": "GitHub official endpoint permission data and actual registration DOM; not a captured token response",
+  "permissions": {
+    "actions": "write",
+    "contents": "read",
+    "metadata": "read",
+    "secrets": "write",
+    "actions_variables": "write"
+  },
+  "actions_variables": {
+    "title": "Variables",
+    "displayTitle": "Repository permissions for \"Variables\"",
+    "permissions": [
+      {
+        "category": "actions",
+        "slug": "list-repository-variables",
+        "subcategory": "variables",
+        "verb": "get",
+        "requestPath": "/repos/{owner}/{repo}/actions/variables",
+        "access": "read",
+        "user-to-server": true,
+        "server-to-server": true,
+        "additional-permissions": false
+      },
+      {
+        "category": "actions",
+        "slug": "create-a-repository-variable",
+        "subcategory": "variables",
+        "verb": "post",
+        "requestPath": "/repos/{owner}/{repo}/actions/variables",
+        "access": "write",
+        "user-to-server": true,
+        "server-to-server": true,
+        "additional-permissions": false
+      },
+      {
+        "category": "actions",
+        "slug": "get-a-repository-variable",
+        "subcategory": "variables",
+        "verb": "get",
+        "requestPath": "/repos/{owner}/{repo}/actions/variables/{name}",
+        "access": "read",
+        "user-to-server": true,
+        "server-to-server": true,
+        "additional-permissions": false
+      },
+      {
+        "category": "actions",
+        "slug": "update-a-repository-variable",
+        "subcategory": "variables",
+        "verb": "patch",
+        "requestPath": "/repos/{owner}/{repo}/actions/variables/{name}",
+        "access": "write",
+        "user-to-server": true,
+        "server-to-server": true,
+        "additional-permissions": false
+      },
+      {
+        "category": "actions",
+        "slug": "delete-a-repository-variable",
+        "subcategory": "variables",
+        "verb": "delete",
+        "requestPath": "/repos/{owner}/{repo}/actions/variables/{name}",
+        "access": "write",
+        "user-to-server": true,
+        "server-to-server": true,
+        "additional-permissions": false
+      }
+    ]
+  }
+}

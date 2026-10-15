@@ -28,7 +28,7 @@ def registration_url(*,public=False):
     query={'name':'Codex Reset Installer','description':'Install Codex reset monitor on one selected repository',
            'url':'https://github.com/YuShenLiu06/codex-reset-monitor','public':'true' if public else 'false',
            'webhook_active':'false',
-           'contents':'read','actions':'write','secrets':'write','variables':'write'}
+           'contents':'read','actions':'write','secrets':'write','actions_variables':'write'}
     return 'https://github.com/settings/apps/new?'+urllib.parse.urlencode(query)
 
 

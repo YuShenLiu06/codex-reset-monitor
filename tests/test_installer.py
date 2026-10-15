@@ -26,7 +26,7 @@ SHA='a'*40
 class FakeAPI:
     def __init__(self):
         self.token='ghu_'+'x'*16;self.calls=[];self.variables={};self.runs={};self.ids=100
-        self.permissions=dict(c.REQUIRED_PERMISSIONS);self.selection='selected';self.names=[TARGET]
+        self.permissions={'actions':'write','contents':'read','metadata':'read','secrets':'write','actions_variables':'write'};self.selection='selected';self.names=[TARGET]
         self.corrupt=None;self.origin=c.SOURCE_REPOSITORY;self.extra=[];self.run_fail=False
         self.dispatch_lost=False;self.run_pending=False;self.has_state=False;self.test_records={}
         self.manifest=c.expected_manifest(ROOT)
@@ -402,7 +402,7 @@ class PermissionContractTest(unittest.TestCase):
         with self.assertRaises(SetupError) as caught:c.verify_installation_permissions(actual)
         diff=caught.exception.permission_diff
         self.assertIn({'name':'checks','actual':'write','expected':'absent'},diff)
-        self.assertIn({'name':'variables','actual':'missing','expected':'write'},diff)
+        self.assertIn({'name':'actions_variables','actual':'missing','expected':'write'},diff)
     def test_changed_extra_none_and_invalid_values_fail_closed_without_raw_echo(self):
         for actual in (dict(c.REQUIRED_PERMISSIONS,contents='write'),dict(c.REQUIRED_PERMISSIONS,administration='write'),dict(c.REQUIRED_PERMISSIONS,issues='none'),dict(c.REQUIRED_PERMISSIONS,secrets='private-value'),{'private-key':'private-value'},None,[]):
             with self.subTest(actual=actual),self.assertRaises(SetupError) as caught:c.verify_installation_permissions(actual)
@@ -422,12 +422,12 @@ class PermissionContractTest(unittest.TestCase):
             api=FakeAPI();api.selection=selection;api.permissions=permissions
             with self.assertRaises(SetupError):c.verify_installation(api,TARGET,'unit-installer')
     def test_retry_only_reads_with_same_authorization(self):
-        api=FakeAPI();api.permissions=dict(c.REQUIRED_PERMISSIONS,variables='read');ui=Mock()
+        api=FakeAPI();api.permissions=dict(c.REQUIRED_PERMISSIONS,actions_variables='read');ui=Mock()
         with tempfile.TemporaryDirectory() as directory:
             progress=c.Progress(Path(directory)/'state.json',TARGET)
             installer=c.Installer(api,progress,api.manifest,Mock())
             def fix(error,slug):
-                self.assertEqual(error.permission_diff,[{'name':'variables','actual':'read','expected':'write'}])
+                self.assertEqual(error.permission_diff,[{'name':'actions_variables','actual':'read','expected':'write'}])
                 api.permissions=dict(c.REQUIRED_PERMISSIONS);return 'retry'
             ui.installation_issue.side_effect=fix
             cli.check_installation(installer,'unit-installer',ui)
@@ -447,7 +447,7 @@ class ObservedPermissionRegressionTest(unittest.TestCase):
         # response; no account identity, token, Secret or installation ID retained.
         actual={'actions':'write','contents':'read','secrets':'write','metadata':'read'}
         with self.assertRaises(SetupError) as caught:c.verify_installation_permissions(actual)
-        self.assertEqual(caught.exception.permission_diff,[{'name':'variables','actual':'missing','expected':'write'}])
+        self.assertEqual(caught.exception.permission_diff,[{'name':'actions_variables','actual':'missing','expected':'write'}])
 
 class BoundedPermissionDiagnosticTest(unittest.TestCase):
     def test_large_unknown_permission_response_remains_bounded_and_rejected(self):
@@ -457,3 +457,39 @@ class BoundedPermissionDiagnosticTest(unittest.TestCase):
         self.assertLessEqual(len(caught.exception.permission_diff),33)
         self.assertLess(len(str(caught.exception)),2500)
         self.assertNotIn('private-value',str(caught.exception))
+
+class CanonicalGitHubPermissionKeysTest(unittest.TestCase):
+    def test_independent_contract_matches_observed_registration_fields(self):
+        expected=json.loads((ROOT/'tests/fixtures/github-variable-permissions.json').read_text())['permissions']
+        self.assertEqual(c.REQUIRED_PERMISSIONS,expected)
+        c.verify_installation_permissions(expected)
+    def test_wrong_legacy_key_is_rejected_and_raw_key_remains_diagnosable(self):
+        actual={'actions':'write','contents':'read','metadata':'read','secrets':'write','variables':'write'}
+        with self.assertRaises(SetupError) as caught:c.verify_installation_permissions(actual)
+        self.assertEqual(caught.exception.permission_diff,[
+            {'name':'actions_variables','actual':'missing','expected':'write'},
+            {'name':'variables','actual':'write','expected':'absent'}])
+    def test_canonical_permission_still_rejects_extra_sensitive_access(self):
+        actual={'actions':'write','contents':'read','metadata':'read','secrets':'write','actions_variables':'write','administration':'write'}
+        with self.assertRaises(SetupError) as caught:c.verify_installation_permissions(actual)
+        self.assertEqual(caught.exception.permission_diff,[{'name':'administration','actual':'write','expected':'absent'}])
+    def test_form_manifest_and_registration_use_same_exact_official_keys(self):
+        from installer.registration import registration_url
+        from urllib.parse import urlsplit,parse_qs
+        expected={'actions':'write','contents':'read','metadata':'read','secrets':'write','actions_variables':'write'}
+        manifest=json.loads((ROOT/'docs/app-manifest.template.json').read_text())['default_permissions']
+        self.assertEqual(manifest,expected)
+        query=parse_qs(urlsplit(registration_url()).query)
+        self.assertEqual({k:query[k][0] for k in expected if k!='metadata'}, {k:v for k,v in expected.items() if k!='metadata'})
+        self.assertNotIn('variables',query)
+
+class OfficialVariableEndpointFixtureTest(unittest.TestCase):
+    def test_official_variables_endpoint_fixture_is_bound_to_actions_variables(self):
+        fixture=json.loads((ROOT/'tests/fixtures/github-variable-permissions.json').read_text())
+        self.assertEqual(fixture['actions_variables']['title'],'Variables')
+        routes={(p['verb'],p['requestPath']):p['access'] for p in fixture['actions_variables']['permissions']}
+        self.assertEqual(routes[('post','/repos/{owner}/{repo}/actions/variables')],'write')
+        self.assertEqual(routes[('patch','/repos/{owner}/{repo}/actions/variables/{name}')],'write')
+        self.assertEqual(routes[('get','/repos/{owner}/{repo}/actions/variables/{name}')],'read')
+    def test_real_field_mock_cannot_be_silently_renamed_with_production_constant(self):
+        self.assertEqual(FakeAPI().permissions,json.loads((ROOT/'tests/fixtures/github-variable-permissions.json').read_text())['permissions'])

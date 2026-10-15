@@ -54,13 +54,13 @@ def build(output,gh,public=None):
                 if path.is_file():
                     destination=licenses/name/str(item);destination.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(path,destination)
     info={'CFBundleName':'Codex 提醒设置','CFBundleDisplayName':'Codex 提醒设置','CFBundleIdentifier':'com.yushen.codex-reset-installer.local',
-          'CFBundleExecutable':'CodexResetInstaller','CFBundlePackageType':'APPL','CFBundleShortVersionString':'0.1.0',
-          'CFBundleVersion':'1','LSMinimumSystemVersion':'13.0','NSHighResolutionCapable':True}
+          'CFBundleExecutable':'CodexResetInstaller','CFBundlePackageType':'APPL','CFBundleShortVersionString':'0.1.1',
+          'CFBundleVersion':'2','LSMinimumSystemVersion':'13.0','NSHighResolutionCapable':True}
     with (contents/'Info.plist').open('wb') as handle:plistlib.dump(info,handle)
     run(['swiftc','-parse-as-library','-target','arm64-apple-macos13.0','-module-cache-path',work/'module-cache',
          ROOT/'macos/InstallerApp.swift','-o',binary/'CodexResetInstaller'])
     (resources/'BUILD-INFO.json').write_text(json.dumps({'purpose':'local unsigned-distribution test; ad-hoc signature only',
-        'architecture':'arm64','python':sys.version.split()[0],'gh':version,'public_app_bundled':public is not None},indent=2))
+        'architecture':'arm64','source_commit':subprocess.run(['git','rev-parse','HEAD'],cwd=ROOT,capture_output=True,text=True,check=True).stdout.strip(),'python':sys.version.split()[0],'gh':version,'public_app_bundled':public is not None},indent=2))
     # Finder may decorate generated .app/framework folders in Documents. Remove
     # only build-output Finder metadata; never remove quarantine or security attrs.
     subprocess.run(['xattr','-dr','com.apple.FinderInfo',str(app)],check=False,capture_output=True)
