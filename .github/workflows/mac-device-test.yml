@@ -1,12 +1,20 @@
 name: Mac device fix test artifact
 run-name: Unpublished Mac device test · ${{ github.sha }}
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'installer/**'
+      - 'macos/**'
+      - 'tests/test_github_oauth.py'
+      - 'scripts/build_macos.py'
+      - '.github/workflows/mac-device-test.yml'
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   build:
-    if: github.repository == 'YuShenLiu06/codex-reset-monitor' && github.ref == 'refs/heads/codex/device-request-tls-fix'
+    if: github.repository == 'YuShenLiu06/codex-reset-monitor' && (github.ref == 'refs/heads/codex/device-request-tls-fix' || github.head_ref == 'codex/device-request-tls-fix')
     runs-on: macos-15
     timeout-minutes: 20
     steps:
