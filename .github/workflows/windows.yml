@@ -1,8 +1,6 @@
 name: Windows preview
 run-name: Windows x64 preview · ${{ github.sha }}
 on:
-  push:
-    branches: [codex/windows-single-exe]
   pull_request:
     branches: [main]
     paths:
