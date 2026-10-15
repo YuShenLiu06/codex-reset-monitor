@@ -132,3 +132,19 @@ class GUISettingsURLTest(unittest.TestCase):
     def test_normalization_can_go_back_and_correct_public_input(self):
         helper=GUIInputRepairTest();gui,out=helper.gui(['Iv1.PublicID','https://github.com/settings/apps/demo','back','corrected'])
         self.assertEqual(gui.public_fields()['app_slug'],'corrected')
+
+class GUIInstallationRepairTest(unittest.TestCase):
+    def test_permission_difference_and_official_recovery_links_are_actionable(self):
+        from installer.core import REQUIRED_PERMISSIONS,verify_installation_permissions
+        try:verify_installation_permissions(dict(REQUIRED_PERMISSIONS,variables='read'))
+        except SetupError as error:
+            helper=GUIInputRepairTest();gui,out=helper.gui(['retry'])
+            self.assertEqual(gui.installation_issue(error,'codex-reset-installer'),'retry')
+            messages=[json.loads(v) for v in out.getvalue().splitlines()]
+            self.assertIn('Variables',messages[-1]['text']);self.assertIn('现在 只读 → 需要 读写',messages[-1]['text'])
+            self.assertIn('不重新授权',messages[-1]['text'])
+            self.assertEqual(messages[0]['links'][0],'https://github.com/settings/apps/codex-reset-installer/permissions')
+    def test_scope_error_is_not_misrepresented_as_missing_permission(self):
+        helper=GUIInputRepairTest();gui,out=helper.gui(['cancel'])
+        self.assertEqual(gui.installation_issue(SetupError('BROAD_INSTALLATION_REJECTED'),'codex-reset-installer'),'cancel')
+        self.assertIn('Only select repositories',out.getvalue())

@@ -123,6 +123,8 @@ struct Choice: Identifiable { let id = UUID(); let label: String; let value: Str
     }
     func linkLabel(_ url: URL) -> String {
         if url.host == "open.feishu.cn" { return "打开飞书官方页面" }
+        if url.path.hasSuffix("/permissions") { return "核对应用权限" }
+        if url.path == "/settings/installations" { return "核对仓库安装" }
         if url.path.hasSuffix("/fork") { return "复制到我的 GitHub" }
         if url.path == "/login/device" { return "打开 GitHub，输入代码" }
         if url.path == "/settings/apps/new" { return "打开 GitHub 创建页" }

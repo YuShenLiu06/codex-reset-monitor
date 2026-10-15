@@ -114,6 +114,36 @@ def device_authorize(client_id,emit,*,request=oauth_request,clock=time.monotonic
     raise SetupError('DEVICE_TIMED_OUT')
 
 
+# Values here are only official permission names and access levels. Never retain
+# the raw installation response in an error or diagnostic.
+DIAGNOSTIC_PERMISSION_NAMES=set(REQUIRED_PERMISSIONS)|{
+    'administration','workflows','checks','issues','pull_requests','deployments',
+    'statuses','security_events','members','organization_administration',
+    'email_addresses','single_file','pages','packages','discussions'}
+
+
+def verify_installation_permissions(actual):
+    differences=[]
+    if not isinstance(actual,dict):
+        differences=[{'name':'permissions','actual':'invalid','expected':'read/write map'}]
+    else:
+        for name,expected in REQUIRED_PERMISSIONS.items():
+            value=actual.get(name)
+            if value!=expected:
+                differences.append({'name':name,'actual':value if value in ('read','write','none') else ('missing' if name not in actual else 'invalid'),'expected':expected})
+        for name,value in actual.items():
+            if name not in REQUIRED_PERMISSIONS:
+                differences.append({'name':name if name in DIAGNOSTIC_PERMISSION_NAMES else 'unknown_permission',
+                    'actual':value if value in ('read','write','none') else 'invalid','expected':'absent'})
+    if differences:
+        if len(differences)>32:
+            differences=differences[:32]+[{'name':'additional_permissions','actual':'invalid','expected':'absent'}]
+        exc=SetupError('INSTALLATION_PERMISSIONS_MISMATCH',
+            '; '.join(v['name']+'='+v['actual']+' (expected '+v['expected']+')' for v in differences))
+        exc.permission_diff=differences
+        raise exc
+
+
 def verify_installation(api,target,slug):
     user=api.request('GET','/user')
     if not isinstance(user.get('login'),str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9-]{0,38}',user['login']):
@@ -124,8 +154,11 @@ def verify_installation(api,target,slug):
     matches=[]
     for installation in installations.get('installations',[]):
         if installation.get('app_slug')!=slug:continue
+        account=installation.get('account')
+        if not isinstance(account,dict) or not isinstance(account.get('login'),str):raise SetupError('INVALID_INSTALLATION_ACCOUNT')
+        if account['login'].casefold()!=target.split('/',1)[0].casefold():continue
         if installation.get('repository_selection')!='selected':raise SetupError('BROAD_INSTALLATION_REJECTED','select only the target repository')
-        if installation.get('permissions')!=REQUIRED_PERMISSIONS:raise SetupError('INSTALLATION_PERMISSIONS_MISMATCH')
+        verify_installation_permissions(installation.get('permissions'))
         repositories=api.request('GET',f"/user/installations/{installation['id']}/repositories?per_page=100")
         names=[r.get('full_name') for r in repositories.get('repositories',[])]
         if names!=[target] or repositories.get('total_count')!=1:raise SetupError('OTHER_REPOSITORIES_ACCESSIBLE','select only the target repository for this installer')
@@ -162,10 +195,15 @@ def verify_repository(api,target,manifest,*,allow_enabled=False):
     for workflow in ('ci.yml','monitor.yml','prepare.yml','acceptance.yml'):
         api.request('GET','/repos/'+target+'/actions/workflows/'+workflow)
     api.request('GET','/repos/'+target+'/actions/secrets/public-key')
-    variables=api.request('GET','/repos/'+target+'/actions/variables?per_page=100')
-    if variables.get('total_count',0)>100:raise SetupError('VARIABLE_LIST_TOO_LARGE')
-    if not allow_enabled and any(v.get('name')=='MONITOR_ENABLED' and v.get('value')=='true' for v in variables.get('variables',[])):
-        raise SetupError('MONITOR_ALREADY_ENABLED','disable and stop running notifications before replacing credentials')
+    try:gate=api.request('GET','/repos/'+target+'/actions/variables/MONITOR_ENABLED')
+    except SetupError as exc:
+        if exc.code!='NOT_FOUND':raise
+        gate=None
+    if gate is not None:
+        if not isinstance(gate,dict) or gate.get('name')!='MONITOR_ENABLED' or not isinstance(gate.get('value'),str):
+            raise SetupError('INVALID_VARIABLE_RESPONSE')
+        if not allow_enabled and gate['value']=='true':
+            raise SetupError('MONITOR_ALREADY_ENABLED','disable and stop running notifications before replacing credentials')
     return commit
 
 

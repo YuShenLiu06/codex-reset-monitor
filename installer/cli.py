@@ -20,6 +20,18 @@ def require(prompt,word):
     if input(prompt).strip()!=word:raise SetupError('USER_CANCELLED')
 
 
+def check_installation(installer,slug,ui=None):
+    # Retry only the read-only validation with the same in-memory authorization.
+    # A click never changes permissions, restarts OAuth or repeats a write.
+    recoverable={'INSTALLATION_PERMISSIONS_MISMATCH','BROAD_INSTALLATION_REJECTED',
+                 'OTHER_REPOSITORIES_ACCESSIBLE','TARGET_INSTALLATION_REQUIRED'}
+    while True:
+        try:return installer.check(slug)
+        except SetupError as exc:
+            if ui is None or exc.code not in recoverable:raise
+            if ui.installation_issue(exc,slug)!='retry':raise SetupError('USER_CANCELLED') from None
+
+
 def manifest():
     # Installed zipapp uses a build-time allowlist, never untrusted remote hashes.
     from installer.resources import read_bundled
@@ -108,7 +120,7 @@ def main(argv=None,ui=None):
         api=GitHubAPI(token);progress.mark('github')
         stage='repository-validation'
         installer=Installer(api,progress,manifest(),emit)
-        installer.check(args.app_slug)
+        check_installation(installer,args.app_slug,ui)
         confirm('确认当前授权 GitHub 用户，输入 '+installer.github_login+'：',installer.github_login)
         if ui is not None:
             recovery=ui.recover(progress)
@@ -133,7 +145,7 @@ def main(argv=None,ui=None):
             values=collect_feishu(progress,emit,ui=ui)
             emit('secrets','将写入 '+progress.target+'：'+', '.join(APP_SECRET_NAMES)+'；只向授权本人通知。')
             confirm('最终敏感配置确认：输入完整目标仓库名：',progress.target)
-            installer.check(args.app_slug)
+            check_installation(installer,args.app_slug,ui)
             stage='secret-upload'
             installer.configure(values)
         stage='workflow-validation'

@@ -37,7 +37,7 @@ class FakeAPI:
         self.calls.append((method,path,payload))
         if path=='/user':return {'login':'ExampleUser','id':123}
         if path.startswith('/user/installations?'):
-            return {'total_count':1,'installations':[{'id':1,'app_slug':'unit-installer','repository_selection':self.selection,'permissions':self.permissions}]}
+            return {'total_count':1,'installations':[{'id':1,'app_slug':'unit-installer','account':{'login':'ExampleUser'},'repository_selection':self.selection,'permissions':self.permissions}]}
         if path.startswith('/user/installations/1/repositories?'):
             return {'total_count':len(self.names),'repositories':[{'full_name':name} for name in self.names]}
         base='/repos/'+TARGET
@@ -387,3 +387,73 @@ class InstallerTest(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+
+class PermissionContractTest(unittest.TestCase):
+    def test_exact_documented_permission_levels_and_default_metadata(self):
+        c.verify_installation_permissions(dict(c.REQUIRED_PERMISSIONS))
+        for key in c.REQUIRED_PERMISSIONS:
+            actual=dict(c.REQUIRED_PERMISSIONS);actual.pop(key)
+            with self.subTest(key=key),self.assertRaises(SetupError) as caught:c.verify_installation_permissions(actual)
+            self.assertEqual(caught.exception.permission_diff,[{'name':key,'actual':'missing','expected':c.REQUIRED_PERMISSIONS[key]}])
+    def test_official_installations_response_permission_subset_is_not_our_app(self):
+        # Unmodified permissions subset of GitHub's documented response example;
+        # this is an official schema fixture, not the user's live installation.
+        actual={'checks':'write','metadata':'read','contents':'read'}
+        with self.assertRaises(SetupError) as caught:c.verify_installation_permissions(actual)
+        diff=caught.exception.permission_diff
+        self.assertIn({'name':'checks','actual':'write','expected':'absent'},diff)
+        self.assertIn({'name':'variables','actual':'missing','expected':'write'},diff)
+    def test_changed_extra_none_and_invalid_values_fail_closed_without_raw_echo(self):
+        for actual in (dict(c.REQUIRED_PERMISSIONS,contents='write'),dict(c.REQUIRED_PERMISSIONS,administration='write'),dict(c.REQUIRED_PERMISSIONS,issues='none'),dict(c.REQUIRED_PERMISSIONS,secrets='private-value'),{'private-key':'private-value'},None,[]):
+            with self.subTest(actual=actual),self.assertRaises(SetupError) as caught:c.verify_installation_permissions(actual)
+            self.assertNotIn('private-value',str(caught.exception));self.assertNotIn('private-key',str(caught.exception))
+    def test_other_owner_stale_install_does_not_block_target_owner(self):
+        api=FakeAPI();original=api.request
+        def response(method,path,payload=None):
+            if path=='/user/installations?per_page=100':
+                good=original(method,path,payload)['installations'][0]
+                bad=dict(good,id=2,account={'login':'OtherOwner'},repository_selection='all',permissions={'administration':'write'})
+                return {'total_count':2,'installations':[bad,good]}
+            return original(method,path,payload)
+        api.request=response
+        self.assertEqual(c.verify_installation(api,TARGET,'unit-installer')['id'],123)
+    def test_target_owner_broad_or_extra_permissions_still_rejected(self):
+        for selection,permissions in [('all',dict(c.REQUIRED_PERMISSIONS)),('selected',dict(c.REQUIRED_PERMISSIONS,administration='write'))]:
+            api=FakeAPI();api.selection=selection;api.permissions=permissions
+            with self.assertRaises(SetupError):c.verify_installation(api,TARGET,'unit-installer')
+    def test_retry_only_reads_with_same_authorization(self):
+        api=FakeAPI();api.permissions=dict(c.REQUIRED_PERMISSIONS,variables='read');ui=Mock()
+        with tempfile.TemporaryDirectory() as directory:
+            progress=c.Progress(Path(directory)/'state.json',TARGET)
+            installer=c.Installer(api,progress,api.manifest,Mock())
+            def fix(error,slug):
+                self.assertEqual(error.permission_diff,[{'name':'variables','actual':'read','expected':'write'}])
+                api.permissions=dict(c.REQUIRED_PERMISSIONS);return 'retry'
+            ui.installation_issue.side_effect=fix
+            cli.check_installation(installer,'unit-installer',ui)
+            self.assertEqual(ui.installation_issue.call_count,1)
+            self.assertTrue(all(method=='GET' for method,_,_ in api.calls))
+    def test_single_variable_read_cannot_miss_enabled_gate_on_later_page(self):
+        api=FakeAPI();api.variables['MONITOR_ENABLED']='true'
+        with self.assertRaises(SetupError) as caught:c.verify_repository(api,TARGET,api.manifest)
+        self.assertEqual(caught.exception.code,'MONITOR_ALREADY_ENABLED')
+        self.assertFalse(any('variables?' in path for _,path,_ in api.calls))
+        self.assertTrue(any(path.endswith('/variables/MONITOR_ENABLED') for _,path,_ in api.calls))
+
+class ObservedPermissionRegressionTest(unittest.TestCase):
+    def test_live_observed_missing_variables_normalized_from_github_ui(self):
+        # 2026-10-15 read-only App and installation settings inspection.
+        # This is a normalized UI observation, NOT a captured authenticated API
+        # response; no account identity, token, Secret or installation ID retained.
+        actual={'actions':'write','contents':'read','secrets':'write','metadata':'read'}
+        with self.assertRaises(SetupError) as caught:c.verify_installation_permissions(actual)
+        self.assertEqual(caught.exception.permission_diff,[{'name':'variables','actual':'missing','expected':'write'}])
+
+class BoundedPermissionDiagnosticTest(unittest.TestCase):
+    def test_large_unknown_permission_response_remains_bounded_and_rejected(self):
+        actual=dict(c.REQUIRED_PERMISSIONS)
+        actual.update({'unknown_'+str(i):'private-value' for i in range(1000)})
+        with self.assertRaises(SetupError) as caught:c.verify_installation_permissions(actual)
+        self.assertLessEqual(len(caught.exception.permission_diff),33)
+        self.assertLess(len(str(caught.exception)),2500)
+        self.assertNotIn('private-value',str(caught.exception))

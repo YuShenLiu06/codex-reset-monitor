@@ -1,6 +1,6 @@
 # 维护者首次创建安装器 GitHub App
 
-本项目尚未创建真实安装器 App。以下步骤只需维护者完成一次，不是每位安装用户都创建 App；终端安装器仅使用公开 client_id 和 App slug。
+以下步骤只需维护者完成一次，不是每位安装用户都创建 App。已有本机个人 App 时应复用；其安装范围未核实前不作为公开发行默认。安装器仅使用公开 client_id 和 App slug。
 
 ## 最少注册步骤
 
@@ -26,3 +26,10 @@ GitHub 官方 manifest flow 可以向 `https://github.com/settings/apps/new` POS
 安装器现在提供首次交互引导并打开[官方支持的 URL 预填注册页](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-using-url-parameters)，权限使用 contents=read、actions=write、secrets=write、variables=write。Device Flow 与 token 过期仍需本人核对。只保存公开 Client ID/slug，无 manifest code 交换、私钥或 client secret 采集。
 
 真实共享 App 创建后，维护者可用 build_release.py 的 --client-id 与 --app-slug 将已审查的公开两项内置进发行包；普通用户无需填写它们，也不会进入 App 注册向导。包内配置优先于本机旧配置，实际安装权限仍由 GitHub API 校验。当前包未内置虚假配置。
+
+
+## 安装权限不一致时
+
+URL 预填不能代替创建后核对。安装器严格要求 Actions/Secrets/Variables:write、Contents/Metadata:read，其他权限不申请。GUI 会逐项显示“当前 → 需要”，可打开“核对应用权限”和“核对仓库安装”，本人修正后回到同一窗口重新检查。仅重读远端状态，不重新发起 OAuth、不自动改权限、不重复写入或测试通知。旧安装接受权限更新之前，注册配置正确也不能证明安装已生效。
+
+缺 Variables 时只修正 Variables，不额外开启 Administration、Contents 写入或所有仓库范围。权限变更必须由本人确认。诊断仅包含固定权限名称及等级，原始响应和凭据不记录。

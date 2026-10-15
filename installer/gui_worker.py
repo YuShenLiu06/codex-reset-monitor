@@ -105,6 +105,31 @@ class GUI:
         elif word=='RESOLVE':
             title='关联上次的任务';text='仅等待你核对的任务，不重新提交。';label='确认，继续等待'
         return self.request(title,text,[{'label':label,'value':word},{'label':'取消','value':'cancel'}],expected=word)
+    def installation_issue(self,error,slug):
+        from installer.registration import public_config
+        slug=public_config('Iv1.ValidationID',slug)['app_slug']
+        names={'actions':'Actions（运行检查）','secrets':'Secrets（保存加密设置）',
+               'variables':'Variables（开关设置）','contents':'Contents（读取代码）',
+               'metadata':'Metadata（仓库基本信息）','administration':'Administration（管理仓库）',
+               'workflows':'Workflows（修改工作流）','unknown_permission':'未识别的额外权限',
+               'permissions':'权限字段','additional_permissions':'还有其他额外权限（已省略）'}
+        levels={'read':'只读','write':'读写','none':'无访问权限','missing':'未授予',
+                'invalid':'响应格式无法识别','absent':'不应申请','read/write map':'权限字段表'}
+        if error.code=='INSTALLATION_PERMISSIONS_MISMATCH':
+            title='GitHub 权限需要核对'
+            rows=[names.get(v['name'],v['name'])+'：现在 '+levels[v['actual']]+' → 需要 '+levels[v['expected']]
+                  for v in error.permission_diff]
+            text='GitHub 返回的安装权限与最小配置不一致：\n'+'\n'.join(rows)+'\n\n请先核对应用的 Permissions & events，再到安装设置确认。应用权限改过时，旧安装可能仍等待本人批准更新。不要重新创建应用，也不要额外授予仓库管理或代码写权限。'
+        else:
+            title='核对 GitHub 安装范围'
+            text={'BROAD_INSTALLATION_REJECTED':'当前选择了所有仓库。请到安装设置改为 Only select repositories，只选择目标仓库。',
+                  'OTHER_REPOSITORIES_ACCESSIBLE':'当前安装可访问其他仓库，或没有包含目标仓库。请只保留目标仓库。',
+                  'TARGET_INSTALLATION_REQUIRED':'当前授权没有找到目标应用的唯一安装。请在安装设置核对该应用已安装到目标仓库。'}[error.code]
+        self.send({'type':'notice','stage':'github','title':title,'text':'',
+                   'links':['https://github.com/settings/apps/'+slug+'/permissions','https://github.com/settings/installations']})
+        return self.request(title,text+'\n\n修正后点“重新检查”，只读取状态，不重新授权、不写设置。可选中文字提供权限差异，无需提供任何密钥。',
+            [{'label':'我已核对，重新检查','value':'retry'},{'label':'暂停，稍后继续','value':'cancel'}])
+
     @staticmethod
     def app_id(value):
         if not re.fullmatch(r'cli_[a-zA-Z0-9_-]{8,128}',value):raise ValueError()
