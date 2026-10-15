@@ -96,7 +96,11 @@ def verify(directory,commit):
     assert sys.platform=='win32','Run the actual release on Windows'
     directory=Path(directory).resolve();executable=directory/EXE;checksum=digest(executable)
     assert (directory/'WINDOWS-SHA256SUMS').read_text(encoding='utf-8').strip()==checksum+'  '+EXE
-    evidence=directory/'windows-evidence';evidence.mkdir(exist_ok=True)
+    evidence=directory/'windows-evidence'
+    # Reverification downloads an artifact containing old captures. Never time stale markers.
+    if evidence.is_symlink():raise ValueError('Evidence must be a local output directory')
+    if evidence.exists():shutil.rmtree(evidence)
+    evidence.mkdir()
     pe(executable,2);raw=executable.read_bytes();assert b'level="asInvoker"' in raw
     import ctypes
     version=ctypes.WinDLL('version',use_last_error=True)
