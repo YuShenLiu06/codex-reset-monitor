@@ -2,7 +2,9 @@
   "acceptance_tests": {
     "e12eeee69c3764020a47e86d1ca3f2db": {
       "attempted_at": "2026-10-15T03:10:07.632036Z",
-      "status": "pending"
+      "receipt": "om_x100b62300fe5a0b0df7979a5544c1c1",
+      "sent_at": "2026-10-15T03:10:07.632036Z",
+      "status": "sent"
     }
   },
   "alerts": {},
