@@ -9,5 +9,46 @@
   },
   "alerts": {},
   "last_sent_at": null,
+  "reset_events": {
+    "history_digest": "2fc246806af4de6cfa63ea74eaa149fda26e9227",
+    "initialized_at": "2026-10-15T07:23:18.820885Z",
+    "last_checked_at": "2026-10-15T07:22:19.406000Z",
+    "records": {
+      "reset:1196d945f711a71d8c33526fc964cd57eab63c80": {
+        "first_seen_at": "2026-10-15T07:23:18.820885Z",
+        "precision": "announcement_fallback",
+        "reset_at": "2026-10-11T04:01:09Z",
+        "source": "https://x.com/thsottiaux/status/2109045392684032299",
+        "source_key": "tibo-reset-2109132167112782291",
+        "status": "baseline"
+      },
+      "reset:292cd5f3a119d33dfbfde51b368a066305cd266b": {
+        "first_seen_at": "2026-10-15T07:23:18.820885Z",
+        "precision": "announcement_fallback",
+        "reset_at": "2026-10-15T06:28:13Z",
+        "source": "https://x.com/thsottiaux/status/2110595484180214059",
+        "source_key": "tibo-reset-2110618732666257557",
+        "status": "baseline"
+      },
+      "reset:5553aab5313e7919ab717c7a281de7cae876c67a": {
+        "first_seen_at": "2026-10-15T07:23:18.820885Z",
+        "precision": "announcement_fallback",
+        "reset_at": "2026-10-07T03:35:09Z",
+        "source": "https://x.com/thsottiaux/status/2106845241357824205",
+        "source_key": "tibo-reset-2107676072871600470",
+        "status": "baseline"
+      },
+      "reset:9b9c10ec39e6f570c57a5ea7bbe9449bb978e742": {
+        "first_seen_at": "2026-10-15T07:23:18.820885Z",
+        "precision": "announcement_fallback",
+        "reset_at": "2026-10-13T05:06:06Z",
+        "source": "https://x.com/thsottiaux/status/2109812360596865224",
+        "source_key": "tibo-reset-2109873287853707513",
+        "status": "baseline"
+      }
+    },
+    "version": 1,
+    "watermark": "2026-10-15T06:28:13Z"
+  },
   "version": 1
 }
