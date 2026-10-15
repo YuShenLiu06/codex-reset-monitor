@@ -382,8 +382,10 @@ class InstallerTest(unittest.TestCase):
             self.assertIn('installer/trusted_files.json',names)
         with zipfile.ZipFile(out/'codex-reset-install-skill.zip') as archive:
             self.assertEqual(archive.read('codex-reset-install/assets/codex-reset-install.pyz'),(out/'codex-reset-install.pyz').read_bytes())
-        done=subprocess.run([sys.executable,'-I','-S',str(out/'codex-reset-install.pyz')],capture_output=True,check=False,env={'PATH':os.environ.get('PATH',''),'HOME':self.temp.name})
-        self.assertEqual(done.returncode,0);self.assertIn(b'[plan]',done.stdout)
+        environment={k:os.environ[k] for k in ('SystemRoot','SYSTEMROOT','WINDIR','TEMP','TMP') if k in os.environ}
+        environment.update(PATH=os.environ.get('PATH',''),HOME=self.temp.name)
+        done=subprocess.run([sys.executable,'-I','-S',str(out/'codex-reset-install.pyz')],capture_output=True,check=False,env=environment)
+        self.assertEqual(done.returncode,0,done.stderr.decode('utf-8',errors='replace'));self.assertIn(b'[plan]',done.stdout)
 
 
 if __name__=='__main__':unittest.main()

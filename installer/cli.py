@@ -69,6 +69,12 @@ def collect_feishu(progress,emit,ui=None):
 
 
 def main(argv=None,ui=None):
+    if sys.platform=='win32':
+        # Redirected Windows consoles otherwise use a legacy codepage. Keep the
+        # CLI and JSON worker readable even under isolated Python (-I).
+        for stream in (sys.stdin,sys.stdout,sys.stderr):
+            if callable(getattr(stream,'reconfigure',None)):
+                stream.reconfigure(encoding='utf-8',errors='strict')
     ask=ui.ask if ui is not None else input
     confirm=ui.confirm if ui is not None else require
     parser=argparse.ArgumentParser(description=__doc__)
