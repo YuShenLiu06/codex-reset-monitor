@@ -1,0 +1,7 @@
+{
+  "url": "https://codex.gussuriworks.com/api/current",
+  "observed_checked_at": "2026-10-15T06:20:01.091Z",
+  "full_capture_sha256": "dcb46c7d0416b001d2f9574315f72e8a597b4a54c9f2c3304c4d0df029df4943",
+  "projection": "Actual captured values for health, event identity/provenance/times and probability. Optional presentation text removed; no invented reset event.",
+  "source_semantics": "https://github.com/gussuri/codex-reset-observatory/blob/main/docs/reset-history-normalization.md"
+}

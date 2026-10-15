@@ -6,6 +6,8 @@ if sys.argv[1:]==['--smoke-test']:
     import json
     from pathlib import Path
     import tempfile
+    from reset_events import identity
+    assert identity("bundled-check").startswith("reset:")
     from installer.cli import main as install, manifest
     from installer.gui_worker import GUI
     from installer.resources import read_bundled

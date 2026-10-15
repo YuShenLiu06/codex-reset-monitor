@@ -21,7 +21,7 @@ from feishu_app import APP_SECRET_NAMES
 SOURCE_REPOSITORY='YuShenLiu06/codex-reset-monitor'
 PROJECT_ID='codex-reset-monitor:24h-feishu:v1'
 REQUIRED_PERMISSIONS={'contents':'read','metadata':'read','actions':'write','secrets':'write','actions_variables':'write'}
-TRUSTED_FILES=('project.json','monitor.py','github_state.py','feishu_app.py','bootstrap_state.py',
+TRUSTED_FILES=('project.json','reset_events.py','monitor.py','github_state.py','feishu_app.py','bootstrap_state.py',
                '.github/workflows/monitor.yml','.github/workflows/prepare.yml','.github/workflows/ci.yml',
                'acceptance.py','.github/workflows/acceptance.yml','.github/workflows/release.yml')
 STAGES=('target','github','compatibility','feishu','secrets','prepare','preview','complete','test','enabled')

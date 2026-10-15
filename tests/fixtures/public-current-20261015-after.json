@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "public-v1",
+  "checkedAt": "2026-10-15T06:40:01.539Z",
+  "updatedAt": "2026-10-15T06:28:13.000Z",
+  "lastRandomResetAt": "2026-10-15T06:28:13.000Z",
+  "dataHealth": {
+    "overall": "ok",
+    "stale": false,
+    "generatedAt": "2026-10-15T06:40:01.539Z",
+    "sources": {
+      "supabaseSignals": {
+        "state": "ok"
+      },
+      "openAIStatus": {
+        "state": "ok"
+      }
+    }
+  },
+  "viewModel": {
+    "probability24h": 0.10117524829204372,
+    "recentHistory": [
+      {
+        "key": "tibo-reset-2110618732666257557",
+        "recordKind": "confirmed_global",
+        "resetAt": "2026-10-15T06:28:13.000Z",
+        "executionTimePrecision": "announcement_fallback",
+        "source": "https://x.com/thsottiaux/status/2110595484180214059",
+        "sourceKind": "direct_post"
+      },
+      {
+        "key": "tibo-reset-2109873287853707513",
+        "recordKind": "confirmed_global",
+        "resetAt": "2026-10-13T05:06:06.000Z",
+        "executionTimePrecision": "announcement_fallback",
+        "source": "https://x.com/thsottiaux/status/2109812360596865224",
+        "sourceKind": "direct_post"
+      },
+      {
+        "key": "tibo-reset-2109132167112782291",
+        "recordKind": "confirmed_global",
+        "resetAt": "2026-10-11T04:01:09.000Z",
+        "executionTimePrecision": "announcement_fallback",
+        "source": "https://x.com/thsottiaux/status/2109045392684032299",
+        "sourceKind": "direct_post"
+      },
+      {
+        "key": "banked-reset-2095651088502591861-observation-20261007T231228952Z",
+        "recordKind": "banked_distribution",
+        "resetAt": "2026-10-07T23:12:28.952Z",
+        "executionTimePrecision": "approximate",
+        "source": "https://x.com/thsottiaux/status/2107913674593644711",
+        "sourceKind": "direct_post"
+      },
+      {
+        "key": "tibo-reset-2107676072871600470",
+        "recordKind": "confirmed_global",
+        "resetAt": "2026-10-07T03:35:09.000Z",
+        "executionTimePrecision": "announcement_fallback",
+        "source": "https://x.com/thsottiaux/status/2106845241357824205",
+        "sourceKind": "direct_post"
+      }
+    ]
+  }
+}

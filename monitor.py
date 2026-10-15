@@ -343,12 +343,16 @@ def validate_state(state: dict) -> dict:
         if entry.get("status") not in {"pending", "sent", "unknown"}:
             raise StateError("Invalid installation test status")
         parse_time(entry.get("attempted_at"), "test.attempted_at")
+    if 'reset_events' in state:
+        from reset_events import validate_reset_state
+        validate_reset_state(state['reset_events'])
     return state
 
 
-def unresolved_delivery(state):
+def unresolved_delivery(state, *, include_reset=True):
     return any(entry["status"] in {"pending", "unknown"}
-               for entry in list(state["alerts"].values()) + list(state.get("acceptance_tests", {}).values()))
+               for entry in (list(state["alerts"].values()) + list(state.get("acceptance_tests", {}).values())
+               + (list(state.get("reset_events", {}).get("records", {}).values()) if include_reset else [])))
 
 
 class StateStore:
@@ -486,7 +490,7 @@ def notification_sender(config: Config, alert: Alert) -> str:
 
 def dispatch(alert: Alert, config: Config, store: StateStore, state: dict,
              now: datetime, send: bool, sender: Callable[[Config, Alert], str]) -> dict:
-    if unresolved_delivery(state):
+    if unresolved_delivery(state, include_reset=False):
         return {"status": "blocked_unresolved_delivery", "event_key": alert.key}
     if alert.key in state["alerts"]:
         return {"status": "duplicate_suppressed", "event_key": alert.key}
@@ -528,14 +532,26 @@ def run_once(config: Config, *, send: bool = False, input_path: Path | None = No
     with store.locked() if send else contextlib.nullcontext():
         state = store.read()
         candidates, source_error, snapshot = [], None, None
+        reset_ready, reset_summary, reset_error = [], {"status": "not_checked"}, None
         if config.official_signals_enabled:
             candidates.extend(official_alerts(config.official_signals_path, now))
         try:
             raw = read_json(input_path) if input_path is not None else fetcher()
             snapshot = validate_snapshot(raw, now, config.max_age_seconds)
+            from reset_events import observe
+            try:
+                changed, reset_ready, reset_summary = observe(raw, snapshot, state, now)
+                if send and changed:
+                    store.write(state)  # Durable baseline/unsent queue; never erase an existing ledger.
+            except StateError:
+                raise
+            except MonitorError as exc:
+                reset_error = str(exc)
             candidate = forecast_alert(snapshot, config)
             if candidate:
                 candidates.append(candidate)
+        except StateError:
+            raise
         except (MonitorError, OSError) as exc:
             source_error = str(exc)
         if source_error and not candidates:
@@ -545,13 +561,22 @@ def run_once(config: Config, *, send: bool = False, input_path: Path | None = No
             if send and index:
                 time.sleep(1)  # Below bot 5/s and 100/min limits, even with local adapters.
             results.append(dispatch(alert, config, store, state, now, send, sender))
+        if snapshot is not None and not reset_error:
+            from reset_events import dispatch as dispatch_reset
+            for key in reset_ready:
+                if send and results:
+                    time.sleep(1)
+                results.append(dispatch_reset(key, config, store, state, now, send, sender))
         unresolved = unresolved_delivery(state)
         result = {"checked_at": iso(now), "mode": "send" if send else "dry-run",
-                  "status": "blocked_unresolved_delivery" if unresolved else ("evaluated" if candidates else "below_threshold"),
+                  "status": "blocked_unresolved_delivery" if unresolved else ("evaluated" if candidates or reset_ready else "below_threshold"),
                   "alerts": results}
         if snapshot is not None:
             result.update(probability24h=snapshot.probability24h, source_generated_at=iso(snapshot.generated_at),
                           threshold=config.threshold)
+        result["reset_events"] = reset_summary
+        if reset_error:
+            result["reset_source_error"] = reset_error
         if source_error:
             result["source_error"] = source_error
         return result
