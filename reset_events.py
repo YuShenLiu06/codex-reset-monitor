@@ -22,7 +22,10 @@ def identity(source_key):
 def source_url(value):
     if not isinstance(value, str) or len(value) > 512:
         raise m.MonitorError('Invalid reset event source')
-    parsed = urlsplit(value)
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        raise m.MonitorError('Malformed reset event source') from None
     if (parsed.scheme != 'https' or parsed.netloc != 'x.com' or parsed.query or parsed.fragment
             or not re.fullmatch(r'/(?:thsottiaux|OpenAI)/status/[0-9]{8,30}/?', parsed.path)):
         raise m.MonitorError('Unapproved reset event source')
@@ -30,7 +33,8 @@ def source_url(value):
 
 
 def validate_record(record):
-    if not isinstance(record, dict) or record.get('status') not in STATUSES:
+    if (not isinstance(record, dict) or not isinstance(record.get('status'), str)
+            or record['status'] not in STATUSES):
         raise m.StateError('Invalid reset delivery record')
     key = record.get('source_key')
     if not isinstance(key, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:-]{0,199}', key):
@@ -39,7 +43,7 @@ def validate_record(record):
         source_url(record.get('source'))
         m.parse_time(record.get('reset_at'), 'reset.reset_at')
         m.parse_time(record.get('first_seen_at'), 'reset.first_seen_at')
-        if record.get('precision') not in PRECISIONS:
+        if not isinstance(record.get('precision'), str) or record['precision'] not in PRECISIONS:
             raise ValueError()
         if record['status'] in ('pending', 'sent', 'unknown', 'abandoned'):
             m.parse_time(record.get('attempted_at'), 'reset.attempted_at')
@@ -91,7 +95,7 @@ def history(raw, snapshot, now):
             future += 1
             continue
         precision = item.get('executionTimePrecision')
-        if precision not in PRECISIONS:
+        if not isinstance(precision, str) or precision not in PRECISIONS:
             raise m.MonitorError('Unsupported reset time precision')
         event = {'source_key': key, 'source': source_url(item.get('source')),
                  'reset_at': m.iso(timestamp), 'precision': precision}

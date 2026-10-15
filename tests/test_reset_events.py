@@ -162,7 +162,7 @@ class ResetEventsTest(unittest.TestCase):
         now+=timedelta(minutes=2);raw['checkedAt']=raw['dataHealth']['generatedAt']=m.iso(now);self.run_data(raw,now);self.assertEqual(len(self.calls),1)
     def test_bad_source_fields_never_send_reset(self):
         self.baseline();now=BASE+timedelta(hours=1)
-        for override in ({'resetAt':'no-zone'},{'key':'../unsafe'},{'source':'https://evil.invalid/post/123'},{'executionTimePrecision':'unknown'}):
+        for override in ({'resetAt':'no-zone'},{'key':'../unsafe'},{'source':'https://evil.invalid/post/123'},{'executionTimePrecision':'unknown'},{'executionTimePrecision':[]},{'source':'https://[invalid/status/12345678'}):
             raw=self.changed(now);raw['viewModel']['recentHistory'][0].update(override)
             self.assertIn('reset_source_error',self.run_data(raw,now))
         self.assertEqual(self.calls,[])
@@ -172,8 +172,10 @@ class ResetEventsTest(unittest.TestCase):
         with self.assertRaises(m.MonitorError):self.run_data(raw,now)
         self.assertEqual(self.calls,[])
     def test_corrupt_ledger_refuses_reset_instead_of_clearing(self):
-        self.baseline();self.store.state['reset_events']['records']['bad']={}
-        with self.assertRaises(m.StateError):self.run_data()
+        self.baseline();original=copy.deepcopy(self.store.state)
+        for malformed in ({},{'status':[]},{'status':'queued','source_key':'event','source':'https://[invalid'}):
+            self.store.state=copy.deepcopy(original);self.store.state['reset_events']['records']['bad']=malformed
+            with self.assertRaises(m.StateError):self.run_data()
     def test_queued_event_removed_or_revised_by_source_is_not_sent(self):
         self.baseline();now=BASE+timedelta(hours=1);self.store.lose_at=len(self.store.writes)+1
         with self.assertRaises(m.StateError):self.run_data(self.changed(now),now)
