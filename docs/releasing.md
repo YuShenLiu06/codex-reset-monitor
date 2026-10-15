@@ -19,10 +19,10 @@
 | 输入 | 固定方式 |
 |---|---|
 | 源码 | 触发 run 的提交；写入 BUILD-INFO / BUILD-CHECKS |
-| Python | 3.12.13，官方 setup-python，固定 action SHA |
+| Python | 3.13.16，官方 setup-python，固定 action SHA |
 | PyInstaller 与依赖 | [requirements](../macos/build-requirements.txt)锁版本与 wheel SHA256；只安装二进制 wheel |
 | GitHub CLI | 官方 2.95.0 arm64 ZIP，代码内固定 SHA256 |
-| Python 许可证 | 官方 CPython v3.12.13 文本，固定 SHA256 |
+| Python 许可证 | 官方 CPython v3.13.16 文本，固定 SHA256 |
 | Actions | checkout、setup-python、upload/download-artifact 固定完整 commit SHA |
 
 这是固定输入、可重复执行的构建流程，不承诺 ZIP 字节完全一致。GitHub runner 镜像、Xcode/Swift 工具链和构建时间仍会变化；首次构建结果与 worker 检查以对应 run 为准。

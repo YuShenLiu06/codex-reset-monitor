@@ -8,8 +8,8 @@ import zipfile
 
 GH_URL='https://github.com/cli/cli/releases/download/v2.95.0/gh_2.95.0_macOS_arm64.zip'
 GH_SHA='3677f9c27965825f9c7d50395473c134edaea4b484373ef6b25de653570a0489'
-LICENSE_URL='https://raw.githubusercontent.com/python/cpython/v3.12.13/LICENSE'
-LICENSE_SHA='3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf'
+LICENSE_URL='https://raw.githubusercontent.com/python/cpython/v3.13.16/LICENSE'
+LICENSE_SHA='78b12c3a81360b357002334f0e70ea0e92eebf7a9b358805c03c48484945f3bb'
 
 
 def fetch(url,destination,expected):

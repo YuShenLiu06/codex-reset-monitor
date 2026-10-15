@@ -45,7 +45,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
-          python-version: '3.12.13'
+          python-version: '3.13.16'
           architecture: arm64
       - name: Check architecture and test native protocol
         run: |
