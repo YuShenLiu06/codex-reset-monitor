@@ -2,9 +2,14 @@
 
 ## 先确认前置条件
 
-真实安装器 GitHub App **尚未注册**；维护者先按 [最少配置步骤](github-app-maintainer.md)创建 App、开启 device flow，并公布可信的 client_id / slug。当前未发布可用 Release。测试包不能被称为已可完整一键部署。
+当前未发布正式 Release。只有 macOS arm64 本机测试包，未完成 Apple 公证；完整真实流程仍待按本清单验收。已有本人反馈安装跑通，不等于公开发行验收完成。
 
-目前 live 安装器支持 **macOS/Linux、Python 3.10+、已安装官方 GitHub CLI**。运行默认计划不要求授权；缺 gh、client_id/slug 或平台不支持时，在授权前停止。请从可信源码对应的包取得安装器并核验 SHA256SUMS，不使用来历不明的安装命令。
+维护者的个人 App 可能已创建；普通用户包所需的可信共享配置尚未公开发布。若窗口要求 Client ID / App 地址，请联系维护者，注册与权限见[维护者配置](github-app-maintainer.md)。
+
+- **窗口测试包**：内置 Python / gh，不要求另行安装。仅使用维护者提供且来源可核验的测试包。
+- **命令行安装器**：支持 macOS/Linux，需要 Python 3.10+ 和官方 GitHub CLI。`--plan` 只预览，不授权。缺依赖或公开 App 配置时，在授权前停止。
+
+以下记录授权与验收要点。窗口测试版按窗口操作；大写确认词及命令参数用于命令行入口。
 
 ## 本人完成一次真实流程
 

@@ -1,128 +1,77 @@
-# Codex 提前重置监测器
+# Codex 提前重置提醒
 
-每小时读取[第三方公开概率 API](https://codex.gussuriworks.com/api/current)，仅在 **未来 24 小时估计严格 >80% 且数据新鲜、健康**时提醒飞书群。恰好 80% 不触发，48/72 小时概率不能替代。Python 3.10+ 标准库，无 Python 第三方依赖、不调用 AI。
+**Codex 额度可能提前重置时，给你发一条飞书提醒。**
 
-**目前只完成代码、测试和安全预览；没有配置飞书密钥或开启发送。** 默认配置禁止发送，Actions 还要求 `MONITOR_ENABLED=true`。提交 workflow 不代表真实通知已启用。
+预测来自第三方，**不是 OpenAI 的保证**。收到提醒，也不代表你的额度已经恢复。预测也包含备用重置额度的发放，仍需你去 Codex 查看。
 
-该站估计未充分前瞻校准，不是 OpenAI 官方保证。目标包含广范围提前重置和备用重置额度（banked reset）发放；拿到备用卡不等于个人额度自动恢复。提醒会带上这些限制。来源健康状态也不能证明所有历史信号采集完整。
+[开始](#start) · [使用](#use) · [求助](#help)
 
-## 免 clone 安装入口（等待真实 App 配置与用户验收）
+## 这是什么
 
-本地已实现内置 Python/gh 的 arm64 macOS 中文窗口测试版（[状态与限制](docs/macos-installer-plan.md)），尚待本人端到端验收和正式签名公证。另有 Release `.pyz` 与 Skill 共用的安装核心，默认在交互终端询问开始并逐步引导，`--plan` 才是离线预览。**尚未发布 Release 或注册真实安装器 GitHub App**，因此现在不能宣称扫码即可完成真实部署。设计与剩余官方用户步骤见[安装器审查稿](docs/installer-review.md)，本人测试用[简短验收清单](docs/user-acceptance.md)。安装器默认扫码新建飞书应用，可显式用公开 App ID 扫码复用；安全预览后由用户确认一次独立安装测试、收到对应标识并明确开启，默认仍关闭。
+像一个“小闹钟”：帮你留意 Codex 有没有可能提前恢复额度。
 
-新增应用机器人后端仅向应用授权本人 `open_id` 通知，保留下面的群 Webhook 兼容方式与原去重记录。选择 `FEISHU_NOTIFY_BACKEND=app` 后，必须有 `FEISHU_APP_ID`、`FEISHU_APP_SECRET`、`FEISHU_SELF_OPEN_ID` 和绑定身份的 `FEISHU_APP_READINESS`。后者记录用户对权限、发布与本人范围的核验，不能当作程序已验证真实送达。未指定后端则继续使用 Webhook，未知后端安全停止。发送未知时两个后端均保守阻塞重试。
+- 每小时看一次[第三方预测](https://codex.gussuriworks.com/api/current)。
+- 数据正常、够新，且未来 24 小时的概率**超过 80%**，才提醒。
+- 同一轮通常只提醒一次，避免重复打扰。
 
-## 首次部署：GitHub Actions
+通过窗口安装器设置后，提醒发给你自己的飞书账号。它不会帮你重置额度，也不需要你提供 OpenAI 密码。
 
-这是按时启动、运行后退出的脚本任务，不是常驻云电脑。适合容忍延迟的轻量提醒；无需购买服务器或开通付费服务。
+<a id="start"></a>
 
-1. 在你要接收消息的**飞书群**中，打开「设置 → 群机器人 → 添加机器人 → 自定义机器人」。开启**签名校验**并保存，取得 Webhook 和签名密钥。自定义机器人只向所在群发送，不能直接私信；不要把密钥贴到聊天、代码、issue 或日志。如果还设置关键词，可使用 `Codex`；GitHub 托管 runner 出口 IP 不固定，固定 IP 白名单通常不适用。
-2. 在已登录 GitHub CLI 的本地终端克隆仓库，执行一次准备：
+## 怎么下载／开始
 
-   ```bash
-   git clone https://github.com/YuShenLiu06/codex-reset-monitor.git
-   cd codex-reset-monitor
-   python3 scripts/deploy.py --prepare
-   ```
+**现在还没有正式安装包。** [Releases 页面](https://github.com/YuShenLiu06/codex-reset-monitor/releases)目前没有发布版本；GitHub 的「Download ZIP」是源码，不是安装包。
 
-   该命令初始化 `monitor-state` 分支并请求默认 dry-run，不发飞书。已有状态时保留；已有初始化标记但状态分支丢失时停止。它**仅用于首次准备**，不能拿来清空发送历史。
-3. 安全输入你刚创建的机器人凭据：
+目前只有 **Mac Apple 芯片（arm64）本机测试包**。它未完成 Apple 公证，完整真实流程仍待验收。普通用户请等待正式发布；Intel Mac、Windows 暂无可推荐的双击安装包。
 
-   ```bash
-   python3 scripts/deploy.py --configure
-   ```
-
-   两次输入均隐藏，仅经 stdin 交给 `gh secret set`，不存本地文件、不进入命令参数。脚本不会登录或扩大 OAuth 权限；若已有授权不足，应由用户自己处理。也可在[仓库 Actions Secrets 设置](https://github.com/YuShenLiu06/codex-reset-monitor/settings/secrets/actions)手动建立 `FEISHU_WEBHOOK_URL` 和 `FEISHU_SIGNING_SECRET`。首次建飞书机器人和录入 Secrets **必须由用户完成，无法自动省略**。
-4. 在 [Actions 页面](https://github.com/YuShenLiu06/codex-reset-monitor/actions/workflows/monitor.yml)选择「Run workflow」，保留 `dry_run=true`，检查测试和实时数据检查结果。预览 job 不注入飞书密钥、不写状态；它用只读临时 token 验证远端状态并预览去重后的候选消息。
-5. 核对目标群和签名设置后，显式开启：
-
-   ```bash
-   python3 scripts/deploy.py --enable
-   ```
-
-   脚本检查两项 Secret 名称和有效状态，再设置仓库变量 `MONITOR_ENABLED=true`。每小时 UTC 第 17 分钟唤起；没有 Secret、不满足健康/阈值或有未解决发送时不会发消息。开启后可以手动 `dry_run=false` 做一次真实检查，仍只有满足阈值才发送，**不会为了测试捏造预测提醒**。到时需在飞书群确认实际消息；仅看到 workflow 成功不证明收件人已阅读。
-
-停止：`python3 scripts/deploy.py --disable`。此命令关闭后续发送门控；已在执行的任务需在 Actions 页面取消或等待结束。保留所有去重记录。更换凭据前先关闭并等待现有任务结束，再运行 `--configure`。
-
-
-## 为什么使用 Actions
-
-| 项目 | 本项目的做法与限制 |
-|---|---|
-| 持久化 | `monitor-state/state.json` 保存非敏感去重元数据。每次发送前通过 GitHub Contents API 写入 `pending` 并等待确认；不依赖 runner 磁盘、cache 或到期 artifact。 |
-| 并发 | workflow 共用 concurrency group，`cancel-in-progress: false`；SHA 条件更新防止两个旧快照同时抢到发送权。排队任务可能被 GitHub 替换，不承诺每小时都执行。 |
-| 权限 | CI、预览仅 `contents: read`；发送 job 仅增加 `contents: write`，使用临时 `GITHUB_TOKEN`，无需新增 PAT。GitHub 无分支粒度 token 权限，因此写权限覆盖该仓库内容，需信任主分支代码及写入者。 |
-| 公开信息 | workflow 日志、状态分支及其历史公开；只记录事件哈希、时间、类型、状态和固定回执，不保存 Webhook、签名密钥、消息原文、群成员或认证令牌。去重时间仍属公开运维信息。 |
-| Secrets | 只在发送步骤环境注入；不向 PR/预览 job 注入，不打印上游响应或异常原文，禁用代理及重定向。GitHub 掩码只是额外保护；仓库写入者能修改 workflow 取得 Secret，不能向不可信协作者开放写权限。 |
-| 依赖与成本 | 唯一外部 action 是 SHA 固定的官方 checkout；使用 `ubuntu-24.04` 自带 Python，无 pip/npm 安装。runner 镜像和 Python 补丁仍由 GitHub 更新。普通公开仓库托管运行，不自动申请付费 runner；以你的 GitHub 账户规则为准。 |
-| 时效与失败 | schedule 可延迟、漏跑；公开仓库 60 天无活动可能自动停用。检查 Actions 最近运行时间及失败通知设置；无新提醒不能证明系统仍在线。不能通过同一失效通道保证故障告警。 |
-
-保持每月人工检查 Actions 最近运行和 workflow 启用状态；不要通过无意义提交假装保障在线。需要严格可控调度、固定出口 IP 或私密状态时，使用下方服务器 cron 方案。
-
-## 安全校验和去重
-
-- 只接受 `public-v1`，`dataHealth.overall == "ok"`、`stale is False`，`supabaseSignals` / `openAIStatus` 均为 `ok`。
-- `checkedAt` 和 `dataHealth.generatedAt` 默认不超过两小时，不超前本机 UTC 五分钟；时间必须带时区，通知显示 UTC+08:00。`lastRandomResetAt` 必须有效且不能在未来。
-- 拒绝非数值/布尔概率、NaN/Inf、越界值、重复 JSON key、错误 schema、降级/过期数据。固定 HTTPS 源、TLS 校验、无跳转/自动重试，15 秒 socket timeout，源响应最多 512 KiB，读取循环目标总时限 30 秒（阻塞一次读最多再占一个 timeout）。
-- 事件 key 用固定源 + `24h` + 标准化 `lastRandomResetAt`；同一重置周期最多一次，新周期也遵守默认 24 小时冷却。`checkedAt` 刷新不能成为新事件。
-- 状态先从远端读出，条件写入 `pending` 成功后才 POST 飞书；`code` 为整数 0 才记录成功回执。HTTP 200、旧 `StatusCode`、超时、业务错误或无法确认的结果均不触发自动重试。Webhook 没有本项目可依赖的远端幂等键，成功回执也没有消息 ID，因此使用 `webhook_code_0`，不伪造消息 ID。
-- 发送后状态写入失败时，远端 `pending` 会阻止下一 runner 重发；写入已成功但回应丢失也停止发送。任意 `pending/unknown` 都暂停自动通知。这是保守的**至多一次尝试**，可能漏送，不承诺严格恰好一次交付。
-- 状态损坏、分支缺失、GitHub 403/404/409、网络错误或超过 1 MiB 均停止；监测过程绝不自动创建空状态。首次初始化只由部署脚本显式执行。
+正式版计划这样开始（**当前尚不可作为下载教程**）：
 
 ```mermaid
-flowchart LR
-  A[健康数据且24h严格大于80%] -->|事件未发且冷却结束| B[远端条件写入pending]
-  B -->|确认写入成功| C[签名POST飞书]
-  B -->|失败或回应未知| X[停止并人工核对]
-  C -->|code为整数0| D[远端更新sent]
-  C -->|失败或结果未知| U[保留pending或unknown]
-  D -->|更新未确认| U
-  U -->|下次运行| X
+flowchart TD
+    A[① 从 Releases 下载安装包] -->|解压后| B[② 双击打开]
+    B -->|跟着窗口提示| C[③ 在 GitHub 和飞书官方页面授权]
+    C -->|收到安装测试消息后| D[④ 确认收到，再开启提醒]
 ```
 
-处理未解决状态：先关闭门控、等待/停止所有实例，查飞书群记录并备份状态。查到消息可将记录标为 `sent`，填实际 `sent_at` / `last_sent_at` 和 `receipt: "manually_verified"`；确定未送达且选择放弃可标为 `abandoned`，事件仍不重发；无法确认则保留。使用正常条件更新提交到状态分支，不能强推、删分支或回滚状态后重发。没有自动清空/重试命令。
+正在参与本机测试？使用维护者交给你的测试包，按[本人验收清单](docs/user-acceptance.md)逐步核对。不要把测试包当正式版转发。
 
-## 本地运行与服务器备选
+<a id="use"></a>
 
-```bash
-# 离线测试，不调用网络或飞书
-python3 -m unittest discover -s tests -v
-# 默认安全实时预览
-python3 monitor.py --once --dry-run
-# 使用不含密钥的示例配置
-python3 monitor.py --config config.example.json --once --dry-run
-```
+## 怎么用
 
-`--input-json PATH` 可读离线数据，但与 `--send` 同用会拒绝。`--loop` 是每 3600 秒检查的前台循环，终端退出就停止，不会安装调度。
+安装并确认开启后，提醒任务会在 GitHub 上定时运行。你平时看飞书消息就好。
 
-服务器需要 Linux/macOS、Python 3.10+。先关闭 Actions 并等待所有发送任务结束，将状态分支的 `state.json` 单独迁移到服务器 `runtime/state.json`（权限 0600），避免换机丢去重记录。不要同时运行 Actions 和本地状态实例；本地 `flock` 只保护同一机器、同一状态文件。
+| 看到什么 | 你要做什么 |
+|---|---|
+| “安装测试”消息 | 核对窗口中的标识；它只是测试，不是重置预告。 |
+| 概率提醒 | 把它当参考，去 Codex 查看自己的实际额度。 |
+| 一直没有消息 | 可能没达到提醒条件；也可能任务停了，去你自己的仓库 Actions 页面看最近运行。 |
 
-服务器可安全输入环境凭据，或由管理员配置仓库外、权限 0600 的环境文件。不要把值写进 crontab、shell 命令参数、仓库文件或日志。复制示例到被忽略的 `config.json` 并设 `sending_enabled: true`；不再需要 lark-cli、飞书 OAuth 或 open_id。
+定时任务可能延迟或漏跑。建议每月检查一次 Actions，确认它还在运行。
 
-在管理员维护的 wrapper 中读取仓库外凭据并导出两项环境变量，再执行：
+想停止提醒：在你自己的仓库 **Actions → Hourly monitor → ⋯ → Disable workflow** 停用工作流。已经开始的任务需另行取消。熟悉终端的用户也可看[关闭与恢复说明](docs/operations.md)。
 
-```bash
-python3 /ABSOLUTE/codex-reset-monitor/monitor.py \
-  --config /ABSOLUTE/codex-reset-monitor/config.json --once --send
-```
+<a id="help"></a>
 
-用户自行安装一条 cron（替换绝对路径；本项目未安装）：
+## 卡住怎么办
 
-```cron
-17 * * * * /ABSOLUTE/secure-monitor-wrapper >> /ABSOLUTE/private-monitor.log 2>&1
-```
+| 问题 | 下一步 |
+|---|---|
+| 找不到安装包 | 正式版尚未发布，先等待；不要下载源码 ZIP 当安装包。 |
+| Mac 拦住测试包 | 暂停，向维护者确认包的来源与状态；不要关闭系统安全保护。 |
+| 窗口要求填 Client ID 或 App 地址 | 测试包缺少公开配置，联系维护者；普通用户不必自行注册安装器 App。 |
+| 授权或权限检查没通过 | 按窗口提示核对目标账号、仓库和权限；详细见[验收与恢复](docs/user-acceptance.md#失败恢复)。 |
+| 测试消息没收到／结果不明 | 先停下，核对飞书和 Actions 记录，不要反复点击发送。 |
 
-本地状态采用临时文件、fsync 和原子 replace；服务器须维护在线状态、时钟同步、日志轮转及非零退出告警。cron 不补停机漏跑。若迁回 Actions，先停服务器并把最新状态迁回远端，不能重新初始化空状态。
+反馈时只提供失败阶段、错误码和脱敏后的说明。**不要发送密码、密钥、授权码或完整账号截图。** 可在 [Issues](https://github.com/YuShenLiu06/codex-reset-monitor/issues)反馈。
 
-## 故障定位与官方依据
+<details>
+<summary>维护者与高级用户文档</summary>
 
-退出码：`0` 正常检查/预览/确认回执；`2` 配置或源数据错误；`3` 发送未知/已有未解决发送；`4` 状态/锁错误；`130` 中断。飞书业务错误也持久标为未知、保守暂停：9499 请求错误、19021 签名/时间问题、19022 IP 校验、19024 关键词校验、11232 限流。只检查安全元数据，勿开启 `set -x`、HTTP debug 或输出完整环境。
+- [GitHub App 注册与权限](docs/github-app-maintainer.md)
+- [macOS 构建方案与当前测试状态](docs/macos-installer-plan.md)
+- [安装器授权、安全与打包审查](docs/installer-review.md)
+- [手动部署、去重机制与故障恢复](docs/operations.md)
+- [本人验收清单](docs/user-acceptance.md)
 
-程序保留原先可选的本地人工核验官方预告适配器，默认关闭，Actions 不启用。它不联网验证；站点 `activeWindow` / 文本分类不能独立触发官方提醒。
-
-- [飞书自定义机器人官方指南](https://open.feishu.cn/document/client-docs/bot-v3/add-custom-bot)：签名是 `timestamp + "\n" + secret` 作 HMAC-SHA256 key，对空消息求摘要后 Base64，秒级时间戳距发送不超过一小时；单机器人 5/s、100/min，请求体 ≤20 KB。本项目每批通知间隔一秒并设 20,000 字节上限，不重试限流。
-- [GitHub schedule 官方限制](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)：默认分支、延迟/漏跑、60 天无活动停用。
-- [GitHub Contents 条件更新 API](https://docs.github.com/en/rest/repos/contents#create-or-update-file-contents)和[临时 GITHUB_TOKEN 权限](https://docs.github.com/en/actions/tutorials/authenticate-with-github_token)。
-- [来源 API 项目](https://github.com/gussuri/codex-reset-observatory)及[模型治理说明](https://github.com/gussuri/codex-reset-observatory/blob/main/docs/probability/published-model-governance.md)。本项目消费公开 DTO，不复制模型或采集器。
-
-首次本机启动：`python3 runtime/release-build/codex-reset-install.pyz`。确认开始后，缺公开 App 配置时打开 GitHub 官方预填注册页；本人勾选 Device Flow、保留 token 过期并创建，只在本地输入公开 Client ID 和 App URL/slug。非交互默认预览不等待输入，`--plan` 始终无副作用，`--run` 兼容原入口。取消后重启同一命令；已创建但尚未填配置时选 existing，勿重复创建。
+</details>
