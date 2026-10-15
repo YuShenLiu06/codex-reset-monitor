@@ -9,7 +9,7 @@ import sys
 import tempfile
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from scripts.verify_macos_release import validate_public
-from scripts.release_assets import assemble, digest, MAC_ZIP, WINDOWS_ZIP
+from scripts.release_assets import assemble, digest, MAC_ZIP, WINDOWS_EXE
 
 def main(mac_directory,windows_directory):
     tag=os.environ['RELEASE_TAG'];sha=os.environ['GITHUB_SHA'];repository=os.environ['GITHUB_REPOSITORY']
@@ -36,7 +36,7 @@ def main(mac_directory,windows_directory):
     if not notes or len(notes)>5000 or '{{DOWNLOADS}}' not in notes:
         raise SystemExit('Write concise version-specific notes with a DOWNLOADS placeholder')
     download=f'https://github.com/{repository}/releases/download/{tag}/'
-    notes=notes.replace('{{DOWNLOADS}}',f'- [Mac Apple 芯片（ZIP）]({download}{MAC_ZIP})\n- [Windows 64 位（ZIP）]({download}{WINDOWS_ZIP})')
+    notes=notes.replace('{{DOWNLOADS}}',f'- [Mac Apple 芯片（ZIP）]({download}{MAC_ZIP})\n- [Windows 64 位（单 EXE）]({download}{WINDOWS_EXE})')
     notes+=f'''
 
 <details>
@@ -48,7 +48,7 @@ def main(mac_directory,windows_directory):
 
 [构建和解包检查](https://github.com/{repository}/actions/runs/{os.environ['GITHUB_RUN_ID']}) · [对应源码](https://github.com/{repository}/tree/{sha})
 
-下方 SHA256SUMS 同时包含两份 ZIP；RELEASE-MANIFEST.json 记录两平台共同源码与资产哈希。BUILD-CHECKS.json / WINDOWS-BUILD-CHECKS.json 保留各平台实际运行证据；Windows 的完整、取消和恢复使用离线模拟服务，不代替真实账号或通知验收。
+下方 SHA256SUMS 包含 Mac ZIP 与 Windows EXE；RELEASE-MANIFEST.json 记录两平台共同源码与资产哈希。BUILD-CHECKS.json / WINDOWS-BUILD-CHECKS.json 保留各平台实际运行证据；Windows 的完整、取消和恢复使用离线模拟服务，不代替真实账号或通知验收。
 
 </details>
 '''

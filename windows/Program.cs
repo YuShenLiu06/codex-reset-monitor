@@ -205,7 +205,7 @@ internal sealed class MainWindow : Window
         session = new WorkerSession(cancel, Receive); title = "正在准备"; detail = "检查安装文件…"; Render();
         int exit;
         try { exit = await session.RunAsync(testMode is "full" or "cancel" or "resume" ? testMode : null); }
-        catch { exit = -1; if (!stopping) Fail("无法启动安装文件，请重新解压完整安装包。问题标识：WORKER_CONNECTION_FAILED"); await session.PauseAsync(); }
+        catch { exit = -1; if (!stopping) Fail("无法启动安装文件，请关闭后重新打开下载的 EXE。问题标识：WORKER_CONNECTION_FAILED"); await session.PauseAsync(); }
         try { File.Delete(cancel); } catch (IOException) { }
         if (stopping) { done = true; title = "设置已暂停"; detail = "进度已保留。重新打开后可以继续；已提交的操作不会撤回，请先核对不明确的结果。"; }
         else if (!done) Fail("安装连接已结束。请重新打开继续。问题标识：WORKER_ENDED");

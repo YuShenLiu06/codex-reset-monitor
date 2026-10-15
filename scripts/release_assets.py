@@ -9,6 +9,7 @@ from scripts.verify_macos_release import CREDENTIAL, FORBIDDEN, inspect_archive,
 
 MAC_ZIP='codex-reset-installer-macos-arm64-preview.zip'
 WINDOWS_ZIP='codex-reset-installer-windows-x64-preview.zip'
+WINDOWS_EXE='codex-reset-installer-windows-x64-preview.exe'
 WINDOWS_ROOT='Codex 提醒设置 Windows 测试版'
 MAC_CHECKS={'archive-allowlist-and-credential-scan','sha256','ditto-unpack','deep-signature-verification',
             'arm64-executable-modes','bundled-gh-version','network-denied-frozen-worker-initialization-cancel',
@@ -72,10 +73,29 @@ def inspect_windows(archive,sha,public,logo_sha):
     return info
 
 
+def inspect_windows_exe(executable,archive,report):
+    from scripts.windows_payload import inspect_exe
+    payload=inspect_exe(executable)
+    if report.get('asset')!=WINDOWS_EXE or report.get('manifest_sha256')!=payload['manifest_sha256']:
+        raise ValueError('Single EXE identity mismatch')
+    required={'embedded-files-match-scanned-package','empty-working-directory','Chinese-and-space-paths',
+        'clean-PATH-no-Python-gh-dotnet','first-and-repeat-launch','cache-corruption-repair','prepare-cancel-cleanup-retry',
+        'stale-preparation-cleanup','previous-version-cache-retained','config-and-progress-retained','concurrent-launch',
+        'embedded-manifest-corruption-rejected','reparse-point-rejected','bundled-gh'}
+    if set(report.get('single_exe_checks',[]))!=required or not report.get('comparison'):
+        raise ValueError('Single EXE acceptance evidence missing')
+    with zipfile.ZipFile(archive) as bundle:
+        expected={name.removeprefix(WINDOWS_ROOT+'/'):bundle.read(name) for name in bundle.namelist() if not name.endswith('/')}
+    if set(expected)!={entry[0] for entry in payload['files']}:raise ValueError('EXE/ZIP file list mismatch')
+    for name,size,packed,offset,checksum in payload['files']:
+        if len(expected[name])!=size or hashlib.sha256(expected[name]).hexdigest()!=checksum:
+            raise ValueError('EXE/ZIP file mismatch: '+name)
+
+
 def assemble(mac,windows,output,sha,public,logo_sha,run_url):
     mac=Path(mac);windows=Path(windows);output=Path(output)
     mac_sha=check_sum(mac,MAC_ZIP,'SHA256SUMS')
-    windows_sha=check_sum(windows,WINDOWS_ZIP,'WINDOWS-SHA256SUMS')
+    windows_sha=check_sum(windows,WINDOWS_EXE,'WINDOWS-SHA256SUMS')
     mac_report=json.loads((mac/'BUILD-CHECKS.json').read_text())
     if (mac_report.get('source_commit')!=sha or mac_report.get('public_app')!=public
         or mac_report.get('public_app_bundled') is not True or set(mac_report.get('checks',[]))!=MAC_CHECKS
@@ -84,15 +104,16 @@ def assemble(mac,windows,output,sha,public,logo_sha,run_url):
     windows_report=json.loads((windows/'WINDOWS-BUILD-CHECKS.json').read_text(encoding='utf-8-sig'))
     check_windows_report(windows_report,sha,windows_sha)
     inspect_windows(windows/WINDOWS_ZIP,sha,public,logo_sha)
+    inspect_windows_exe(windows/WINDOWS_EXE,windows/WINDOWS_ZIP,windows_report)
     output.mkdir(parents=True,exist_ok=False)
-    copies=[(mac/MAC_ZIP,MAC_ZIP),(windows/WINDOWS_ZIP,WINDOWS_ZIP),
+    copies=[(mac/MAC_ZIP,MAC_ZIP),(windows/WINDOWS_EXE,WINDOWS_EXE),
             (mac/'SHA256SUMS','MACOS-SHA256SUMS'),(windows/'WINDOWS-SHA256SUMS','WINDOWS-SHA256SUMS'),
             (mac/'BUILD-CHECKS.json','BUILD-CHECKS.json'),(windows/'WINDOWS-BUILD-CHECKS.json','WINDOWS-BUILD-CHECKS.json')]
     for source,name in copies:shutil.copyfile(source,output/name)
-    (output/'SHA256SUMS').write_text(mac_sha+'  '+MAC_ZIP+'\n'+windows_sha+'  '+WINDOWS_ZIP+'\n')
+    (output/'SHA256SUMS').write_text(mac_sha+'  '+MAC_ZIP+'\n'+windows_sha+'  '+WINDOWS_EXE+'\n')
     manifest={'source_commit':sha,'run_url':run_url,'public_app':public,'logo_sha256':logo_sha,
               'platforms':{'macos-arm64':{'archive':MAC_ZIP,'sha256':mac_sha,'report':'BUILD-CHECKS.json'},
-                           'windows-x64':{'archive':WINDOWS_ZIP,'sha256':windows_sha,'report':'WINDOWS-BUILD-CHECKS.json'}},
+                           'windows-x64':{'archive':WINDOWS_EXE,'sha256':windows_sha,'report':'WINDOWS-BUILD-CHECKS.json'}},
               'assets':{path.name:digest(path) for path in sorted(output.iterdir())},
               'limits':['macOS not notarized; Windows unsigned','offline fixtures do not prove live multi-account installation']}
     (output/'RELEASE-MANIFEST.json').write_text(json.dumps(manifest,indent=2)+'\n')

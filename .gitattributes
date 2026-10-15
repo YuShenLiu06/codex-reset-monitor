@@ -9,3 +9,4 @@
 *.md text eol=lf
 *.png binary
 *.ico binary
+*.cpp text eol=lf
