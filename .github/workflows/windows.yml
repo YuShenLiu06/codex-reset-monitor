@@ -43,7 +43,8 @@ jobs:
       - name: Fetch and verify fixed official Windows build inputs
         run: python scripts/windows_dependencies.py "$env:RUNNER_TEMP/windows-deps"
       - name: Install hash-locked worker build dependencies
-        run: python -m pip install --require-hashes --only-binary=:all: -r windows/build-requirements.txt
+        run: |
+          python -m pip install --require-hashes --only-binary=:all: -r windows/build-requirements.txt
       - name: Build native x64 portable preview
         run: python scripts/build_windows.py --deps "$env:RUNNER_TEMP/windows-deps" --output runtime/windows-release
       - name: Run actual ZIP UI-worker startup, full offline E2E, cancellation and recovery

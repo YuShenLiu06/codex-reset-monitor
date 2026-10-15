@@ -1,6 +1,7 @@
 """Shared Release/Skill installation core. Default is offline plan only."""
 from __future__ import annotations
 import base64
+from contextlib import contextmanager
 import hashlib
 import json
 import os
@@ -209,6 +210,22 @@ def verify_repository(api,target,manifest,*,allow_enabled=False):
     return commit
 
 
+@contextmanager
+def external_process_dll_path():
+    # PyInstaller adds its private DLL directory on Windows. Do not inject that
+    # directory into the separately bundled official GitHub CLI process.
+    if sys.platform!='win32' or not getattr(sys,'frozen',False):
+        yield;return
+    import ctypes
+    kernel=ctypes.WinDLL('kernel32',use_last_error=True)
+    buffer=ctypes.create_unicode_buffer(32768)
+    if kernel.GetDllDirectoryW(len(buffer),buffer)>=len(buffer):raise SetupError('DLL_DIRECTORY_INVALID')
+    previous=buffer.value
+    if not kernel.SetDllDirectoryW(None):raise SetupError('DLL_DIRECTORY_INVALID')
+    try:yield
+    finally:kernel.SetDllDirectoryW(previous or None)
+
+
 def upload_secrets(token,target,values,runner=None):
     runner = runner or subprocess.run
     if set(values)!=set(APP_SECRET_NAMES):raise SetupError('INVALID_SECRET_PLAN')
@@ -225,8 +242,9 @@ def upload_secrets(token,target,values,runner=None):
         options={'creationflags':0x08000000} if sys.platform=='win32' else {}
         for name in APP_SECRET_NAMES:
             try:
-                result=runner([executable,'secret','set',name,'--repo',target,'--app','actions'],input=values[name].encode(),
-                    stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=60,check=False,env=environment,**options)
+                with external_process_dll_path():
+                    result=runner([executable,'secret','set',name,'--repo',target,'--app','actions'],input=values[name].encode(),
+                        stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=60,check=False,env=environment,**options)
                 if result.returncode:raise ValueError()
             except Exception:raise SetupError('SECRET_UPLOAD_UNCONFIRMED','partial upload possible; inspect names and reuse same app, gate stays disabled') from None
 

@@ -197,7 +197,7 @@ internal sealed class MainWindow : Window
     private async Task Start()
     {
         if (session != null) return;
-        string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        string local = Environment.GetEnvironmentVariable("LOCALAPPDATA") ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         if (local == "") { Fail("无法找到本机进度目录。问题标识：LOCAL_APP_DATA_REQUIRED"); return; }
         string cancel = Path.Combine(local, "Codex Reset Installer", "sessions", Guid.NewGuid().ToString("N") + ".cancel");
         session = new WorkerSession(cancel, Receive); title = "正在准备"; detail = "检查安装文件…"; Render();
