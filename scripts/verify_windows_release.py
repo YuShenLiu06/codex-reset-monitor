@@ -112,6 +112,10 @@ def verify(directory,commit):
     fixed=ctypes.c_void_p();size=ctypes.c_uint()
     assert version.VerQueryValueW(info,'\\',ctypes.byref(fixed),ctypes.byref(size))
     values=struct.unpack('<13I',ctypes.string_at(fixed,52));assert values[0]==0xFEEF04BD and values[2:4]==(1,7<<16)
+    for field in ('FileVersion','ProductVersion'):
+        value=ctypes.c_void_p();length=ctypes.c_uint()
+        assert version.VerQueryValueW(info,'\\StringFileInfo\\040904b0\\'+field,ctypes.byref(value),ctypes.byref(length))
+        assert ctypes.wstring_at(value.value)=='0.1.7-preview.1'
     payload=inspect_exe(executable)
     public=json.loads((ROOT/'macos/public-app.json').read_text())
     inspect_windows(directory/WINDOWS_ZIP,commit,public,digest(ROOT/'assets/logo-v1.png'))

@@ -8,11 +8,21 @@ import zipfile
 from scripts.release_assets import (MAC_ZIP, WINDOWS_ZIP, WINDOWS_EXE, WINDOWS_ROOT, MAC_CHECKS,
                                    assemble, check_windows_report, inspect_windows)
 from scripts.verify_macos_release import APP, PUBLIC_RESOURCE
+from scripts.release_assets import check_deployment_report,check_tls_report,check_trusted_manifests
+from installer.core import expected_manifest
 
 SHA='a'*40
 PUBLIC={'version':1,'client_id':'Iv1.UnitPublicID','app_slug':'unit-installer'}
 LOGO=b'original synthetic logo'
 LOGO_SHA=hashlib.sha256(LOGO).hexdigest()
+
+def pairing_report():
+    return {'deployment_commit':SHA,'oauth_requests':0,'http_requests':0,'writes':0,
+            'cases':[{'case':name,'passed':True} for name in ('paired','fork-disabled','missing','corrupt','unreviewed','workflow-unavailable')]}
+
+def tls_report():
+    return {'native_system_trust':True,'certificate_verification':True,'hostname_verification':True,'oauth_requests':0,
+            'public_gets':[{'host':host,'http_status':200} for host in ('github.com','api.github.com')]}
 
 
 def windows_report(archive_sha):
@@ -23,6 +33,31 @@ def windows_report(archive_sha):
 
 
 class SharedReleaseTest(unittest.TestCase):
+    def test_both_platforms_cannot_share_an_old_or_different_trusted_manifest(self):
+        current=expected_manifest(Path(__file__).resolve().parents[1])
+        for change in ('old-commit','different','both-wrong'):
+            with self.subTest(change=change),tempfile.TemporaryDirectory() as temporary:
+                root=Path(temporary);mac=root/'mac.zip';windows=root/'win.zip'
+                mac_map=dict(current);win_map=dict(current)
+                if change=='different':win_map['monitor.py']='b'*64
+                if change=='both-wrong':mac_map['monitor.py']=win_map['monitor.py']='b'*64
+                for path,prefix,reviewed in ((mac,APP+'/Contents/Resources',mac_map),(windows,WINDOWS_ROOT,win_map)):
+                    with zipfile.ZipFile(path,'w') as bundle:
+                        bundle.writestr(prefix+'/BUILD-INFO.json',json.dumps({'deployment_manifest_commit':'b'*40 if change=='old-commit' else SHA}))
+                        bundle.writestr(prefix+'/worker/_internal/installer/trusted_files.json',json.dumps(reviewed))
+                with self.assertRaises(ValueError):check_trusted_manifests(mac,windows,SHA)
+
+    def test_final_pairing_cannot_reuse_old_commit_or_hide_missing_failure_cases(self):
+        for change in ('old-commit','missing-case','failed-case','write'):
+            report=pairing_report()
+            if change=='old-commit':report['deployment_commit']='b'*40
+            if change=='missing-case':report['cases'].pop()
+            if change=='failed-case':report['cases'][0]['passed']=False
+            if change=='write':report['writes']=1
+            with self.subTest(change=change),self.assertRaises(ValueError):check_deployment_report(report,SHA)
+        report=tls_report();report['hostname_verification']=False
+        with self.assertRaises(ValueError):check_tls_report(report)
+
     def test_rejects_wrong_commit_missing_resume_and_forced_cancellation(self):
         for mutation in ('source','missing','forced','unfinished','no-resume'):
             report=windows_report('f'*64)
@@ -36,9 +71,10 @@ class SharedReleaseTest(unittest.TestCase):
     def windows_zip(self,path,extra=None,public=PUBLIC):
         with zipfile.ZipFile(path,'w') as bundle:
             bundle.writestr(WINDOWS_ROOT+'/BUILD-INFO.json',json.dumps({'source_commit':SHA,'architecture':'x64',
-                'public_app':public,'logo_sha256':LOGO_SHA}))
+                'deployment_manifest_commit':SHA,'public_app':public,'logo_sha256':LOGO_SHA}))
             bundle.writestr(WINDOWS_ROOT+'/ProjectLogo.png',LOGO)
             bundle.writestr(WINDOWS_ROOT+'/worker/_internal/installer/public_app.json',json.dumps(public))
+            bundle.writestr(WINDOWS_ROOT+'/worker/_internal/installer/trusted_files.json',json.dumps(expected_manifest(Path(__file__).resolve().parents[1]),sort_keys=True))
             if extra:bundle.writestr(*extra)
 
     def test_rejects_private_files_credentials_and_other_app_config(self):
@@ -56,8 +92,9 @@ class SharedReleaseTest(unittest.TestCase):
             self.windows_zip(windows/WINDOWS_ZIP)
             with zipfile.ZipFile(mac/MAC_ZIP,'w') as bundle:
                 bundle.writestr(APP+'/Contents/Resources/BUILD-INFO.json',json.dumps({'source_commit':SHA,
-                    'architecture':'arm64','public_app_bundled':True,'public_app':PUBLIC}))
+                    'deployment_manifest_commit':SHA,'architecture':'arm64','public_app_bundled':True,'public_app':PUBLIC}))
                 bundle.writestr(PUBLIC_RESOURCE,json.dumps(PUBLIC))
+                bundle.writestr(APP+'/Contents/Resources/worker/_internal/installer/trusted_files.json',json.dumps(expected_manifest(Path(__file__).resolve().parents[1]),sort_keys=True))
                 for name in ('Python.txt','GitHub-CLI.txt'):
                     bundle.writestr(APP+'/Contents/Resources/licenses/'+name,b'license '*30)
             from scripts.windows_payload import manifest,FOOTER,MAGIC,inspect_exe
@@ -72,9 +109,12 @@ class SharedReleaseTest(unittest.TestCase):
                 (directory/sums).write_text(value+'  '+name+'\n')
             (mac/'BUILD-CHECKS.json').write_text(json.dumps({'source_commit':SHA,'public_app':PUBLIC,
                 'public_app_bundled':True,'logo_sha256':LOGO_SHA,'checks':sorted(MAC_CHECKS)}))
+            (mac/'PUBLIC-TLS-CHECK.json').write_text(json.dumps(tls_report()))
+            (mac/'DEPLOYMENT-PAIR-CHECKS.json').write_text(json.dumps(pairing_report()))
             win_sha=hashlib.sha256((windows/WINDOWS_EXE).read_bytes()).hexdigest()
             report=windows_report(win_sha)
             report.update(asset=WINDOWS_EXE,manifest_sha256=inspect_exe(windows/WINDOWS_EXE)['manifest_sha256'],comparison={'measured':True},
+                public_tls_check=tls_report(),deployment_pairing=pairing_report(),
                 single_exe_checks=['embedded-files-match-scanned-package','normal-no-argument-launch-and-close','empty-working-directory','Chinese-and-space-paths',
                     'clean-PATH-no-Python-gh-dotnet','first-and-repeat-launch','cache-corruption-repair','prepare-cancel-cleanup-retry',
                     'stale-preparation-cleanup','old-ZIP-to-EXE-progress-resume','previous-version-cache-retained','config-and-progress-retained','concurrent-launch',
@@ -85,11 +125,12 @@ class SharedReleaseTest(unittest.TestCase):
             # Unselected files stay outside public assets.
             (windows/'not-for-release.txt').write_text('synthetic evidence')
             output=root/'release';assets=assemble(mac,windows,output,SHA,PUBLIC,LOGO_SHA,'https://example.test/run')
-            self.assertEqual(len(assets),9)
+            self.assertEqual(len(assets),11)
             self.assertFalse((output/'not-for-release.txt').exists())
             self.assertEqual(len((output/'SHA256SUMS').read_text().splitlines()),2)
             manifest=json.loads((output/'RELEASE-MANIFEST.json').read_text())
             self.assertEqual(manifest['source_commit'],SHA)
+            self.assertEqual(manifest['deployment_manifest_commit'],SHA)
             self.assertEqual(set(manifest['platforms']),{'macos-arm64','windows-x64'})
             report=json.loads((windows/'WINDOWS-BUILD-CHECKS.json').read_text());report['source_commit']='b'*40
             (windows/'WINDOWS-BUILD-CHECKS.json').write_text(json.dumps(report))

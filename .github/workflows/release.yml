@@ -70,7 +70,16 @@ jobs:
             --python-license "$RUNNER_TEMP/release-deps/Python-LICENSE.txt" \
             --public-config macos/public-app.json
       - name: Scan ZIP, extract, verify signatures and smoke frozen worker offline
-        run: python3 scripts/verify_macos_release.py runtime/release-assets "$GITHUB_SHA" --public-config macos/public-app.json
+        run: |
+          python3 scripts/verify_macos_release.py runtime/release-assets "$GITHUB_SHA" --public-config macos/public-app.json
+          python3 - <<'PY'
+          import os,pathlib,plistlib
+          info=plistlib.loads(pathlib.Path('runtime/release-assets/Codex 提醒设置.app/Contents/Info.plist').read_bytes())
+          assert info['CFBundleShortVersionString']==os.environ['RELEASE_TAG'].removeprefix('v').split('-preview.')[0]
+          assert info.get('CodexBuildLabel','')==''
+          PY
+          "runtime/release-assets/Codex 提醒设置.app/Contents/Resources/worker/reset-worker" --tls-check > runtime/release-assets/PUBLIC-TLS-CHECK.json
+          python3 scripts/verify_deployment_pair.py "runtime/release-assets/Codex 提醒设置.app/Contents/Resources/worker/reset-worker" "$GITHUB_SHA" runtime/release-assets/DEPLOYMENT-PAIR-CHECKS.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: macos-arm64-preview
@@ -78,6 +87,8 @@ jobs:
             runtime/release-assets/codex-reset-installer-macos-arm64-preview.zip
             runtime/release-assets/SHA256SUMS
             runtime/release-assets/BUILD-CHECKS.json
+            runtime/release-assets/PUBLIC-TLS-CHECK.json
+            runtime/release-assets/DEPLOYMENT-PAIR-CHECKS.json
           if-no-files-found: error
           retention-days: 3
           compression-level: 0
@@ -155,5 +166,54 @@ jobs:
             runtime/downloaded-release/PUBLISHED-IDENTITY.json
             runtime/downloaded-release/WINDOWS-BUILD-CHECKS.json
             runtime/downloaded-release/windows-evidence/
+          if-no-files-found: error
+          retention-days: 7
+
+  verify-published-macos:
+    needs: publish
+    runs-on: macos-15
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13.16'
+          architecture: arm64
+      - name: Download and verify the published Mac archive
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,plistlib,urllib.request,zipfile
+          folder=pathlib.Path('runtime/published-macos');folder.mkdir(parents=True)
+          base='https://github.com/'+os.environ['GITHUB_REPOSITORY']+'/releases/download/'+os.environ['RELEASE_TAG']+'/'
+          for name in ('codex-reset-installer-macos-arm64-preview.zip','MACOS-SHA256SUMS','RELEASE-MANIFEST.json'):
+              with urllib.request.urlopen(base+name,timeout=60) as source:
+                  (folder/('SHA256SUMS' if name=='MACOS-SHA256SUMS' else name)).write_bytes(source.read())
+          manifest=json.loads((folder/'RELEASE-MANIFEST.json').read_text())
+          checksum=hashlib.sha256((folder/'codex-reset-installer-macos-arm64-preview.zip').read_bytes()).hexdigest()
+          assert manifest['source_commit']==manifest['deployment_manifest_commit']==os.environ['GITHUB_SHA']
+          assert manifest['platforms']['macos-arm64']['sha256']==checksum
+          with zipfile.ZipFile(folder/'codex-reset-installer-macos-arm64-preview.zip') as archive:
+              info=plistlib.loads(archive.read('Codex 提醒设置.app/Contents/Info.plist'))
+          assert info['CFBundleShortVersionString']==os.environ['RELEASE_TAG'].removeprefix('v').split('-preview.')[0]
+          assert info.get('CodexBuildLabel','')==''
+          (folder/'PUBLISHED-IDENTITY.json').write_text(json.dumps({'source_commit':os.environ['GITHUB_SHA'],'tag':os.environ['RELEASE_TAG'],'sha256':checksum}))
+          PY
+          python3 scripts/verify_macos_release.py runtime/published-macos "$GITHUB_SHA" --public-config macos/public-app.json
+          ditto -x -k runtime/published-macos/codex-reset-installer-macos-arm64-preview.zip runtime/published-macos/unpacked
+          "runtime/published-macos/unpacked/Codex 提醒设置.app/Contents/Resources/worker/reset-worker" --tls-check > runtime/published-macos/PUBLIC-TLS-CHECK.json
+          python3 scripts/verify_deployment_pair.py "runtime/published-macos/unpacked/Codex 提醒设置.app/Contents/Resources/worker/reset-worker" "$GITHUB_SHA" runtime/published-macos/DEPLOYMENT-PAIR-CHECKS.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: published-macos-acceptance
+          path: |
+            runtime/published-macos/PUBLISHED-IDENTITY.json
+            runtime/published-macos/BUILD-CHECKS.json
+            runtime/published-macos/PUBLIC-TLS-CHECK.json
+            runtime/published-macos/DEPLOYMENT-PAIR-CHECKS.json
           if-no-files-found: error
           retention-days: 7

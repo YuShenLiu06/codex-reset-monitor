@@ -6,6 +6,9 @@ import shutil
 import stat
 import zipfile
 from scripts.verify_macos_release import CREDENTIAL, FORBIDDEN, inspect_archive, validate_public
+from installer.core import expected_manifest
+
+ROOT=Path(__file__).resolve().parents[1]
 
 MAC_ZIP='codex-reset-installer-macos-arm64-preview.zip'
 WINDOWS_ZIP='codex-reset-installer-windows-x64-preview.zip'
@@ -15,6 +18,38 @@ WINDOWS_ROOT='Codex 提醒设置 Windows 测试版'
 MAC_CHECKS={'archive-allowlist-and-credential-scan','sha256','ditto-unpack','deep-signature-verification',
             'arm64-executable-modes','bundled-gh-version','network-denied-frozen-worker-initialization-cancel',
             'original-logo-icns-and-actual-application-dock-icon-load'}
+
+
+def check_deployment_report(report,sha):
+    cases=report.get('cases',[])
+    required={'paired','fork-disabled','missing','corrupt','unreviewed','workflow-unavailable'}
+    if (report.get('deployment_commit')!=sha or report.get('oauth_requests')!=0 or report.get('http_requests')!=0
+        or report.get('writes')!=0 or len(cases)!=len(required) or {v.get('case') for v in cases}!=required
+        or any(v.get('passed') is not True for v in cases)):
+        raise ValueError('Final deployment pairing evidence missing or mismatched')
+
+
+def check_tls_report(report):
+    if any(report.get(key) is not True for key in ('native_system_trust','certificate_verification','hostname_verification')):
+        raise ValueError('Native strict TLS evidence required')
+    responses=report.get('public_gets',[])
+    if report.get('oauth_requests')!=0 or len(responses)!=2 or {v.get('host') for v in responses}!={'github.com','api.github.com'}:
+        raise ValueError('Fixed unauthenticated HTTPS evidence required')
+    if any(v.get('http_status')!=200 and not (v.get('host')=='api.github.com' and v.get('http_status')==403 and v.get('rate_limited') is True) for v in responses):
+        raise ValueError('Unexpected public HTTPS result')
+
+
+def check_trusted_manifests(mac,windows,sha):
+    with zipfile.ZipFile(mac) as bundle:
+        mac_info=json.loads(bundle.read('Codex 提醒设置.app/Contents/Resources/BUILD-INFO.json'))
+        reviewed=json.loads(bundle.read('Codex 提醒设置.app/Contents/Resources/worker/_internal/installer/trusted_files.json'))
+    with zipfile.ZipFile(windows) as bundle:
+        windows_info=json.loads(bundle.read(WINDOWS_ROOT+'/BUILD-INFO.json'))
+        windows_reviewed=json.loads(bundle.read(WINDOWS_ROOT+'/worker/_internal/installer/trusted_files.json'))
+    if (mac_info.get('deployment_manifest_commit')!=sha or windows_info.get('deployment_manifest_commit')!=sha
+        or reviewed!=windows_reviewed or reviewed!=expected_manifest(ROOT)):
+        raise ValueError('Both final platform manifests must match this reviewed release source')
+    return hashlib.sha256(json.dumps(reviewed,sort_keys=True).encode()).hexdigest()
 
 
 def digest(path):
@@ -106,10 +141,16 @@ def assemble(mac,windows,output,sha,public,logo_sha,run_url):
     check_windows_report(windows_report,sha,windows_sha)
     inspect_windows(windows/WINDOWS_ZIP,sha,public,logo_sha)
     inspect_windows_exe(windows/WINDOWS_EXE,windows/WINDOWS_ZIP,windows_report)
+    trusted_sha=check_trusted_manifests(mac/MAC_ZIP,windows/WINDOWS_ZIP,sha)
+    mac_tls=json.loads((mac/'PUBLIC-TLS-CHECK.json').read_text())
+    mac_pairing=json.loads((mac/'DEPLOYMENT-PAIR-CHECKS.json').read_text())
+    check_tls_report(mac_tls);check_tls_report(windows_report.get('public_tls_check',{}))
+    check_deployment_report(mac_pairing,sha);check_deployment_report(windows_report.get('deployment_pairing',{}),sha)
     output.mkdir(parents=True,exist_ok=False)
     copies=[(mac/MAC_ZIP,MAC_ZIP),(windows/WINDOWS_EXE,WINDOWS_EXE),
             (mac/'SHA256SUMS','MACOS-SHA256SUMS'),(windows/'WINDOWS-SHA256SUMS','WINDOWS-SHA256SUMS'),
-            (mac/'BUILD-CHECKS.json','BUILD-CHECKS.json'),(windows/'WINDOWS-BUILD-CHECKS.json','WINDOWS-BUILD-CHECKS.json')]
+            (mac/'BUILD-CHECKS.json','BUILD-CHECKS.json'),(windows/'WINDOWS-BUILD-CHECKS.json','WINDOWS-BUILD-CHECKS.json'),
+            (mac/'PUBLIC-TLS-CHECK.json','MACOS-PUBLIC-TLS-CHECK.json'),(mac/'DEPLOYMENT-PAIR-CHECKS.json','MACOS-DEPLOYMENT-PAIR-CHECKS.json')]
     for source,name in copies:shutil.copyfile(source,output/name)
     # Only known synthetic UI captures: durable evidence, never personal account screenshots.
     screenshots=('startup/preparing.png','startup/welcome.png','full/device.png','full/final.png','cancel/final.png','resume/final.png')
@@ -120,7 +161,7 @@ def assemble(mac,windows,output,sha,public,logo_sha,run_url):
                 raise ValueError('Actual offline PNG capture required: '+name)
             bundle.writestr(name,data)
     (output/'SHA256SUMS').write_text(mac_sha+'  '+MAC_ZIP+'\n'+windows_sha+'  '+WINDOWS_EXE+'\n')
-    manifest={'source_commit':sha,'run_url':run_url,'public_app':public,'logo_sha256':logo_sha,
+    manifest={'source_commit':sha,'deployment_manifest_commit':sha,'trusted_manifest_sha256':trusted_sha,'run_url':run_url,'public_app':public,'logo_sha256':logo_sha,
               'platforms':{'macos-arm64':{'archive':MAC_ZIP,'sha256':mac_sha,'report':'BUILD-CHECKS.json'},
                            'windows-x64':{'archive':WINDOWS_EXE,'sha256':windows_sha,'report':'WINDOWS-BUILD-CHECKS.json'}},
               'assets':{path.name:digest(path) for path in sorted(output.iterdir())},
