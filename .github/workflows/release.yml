@@ -108,3 +108,52 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/publish_preview.py runtime/release-assets runtime/windows-release
+
+  verify-published-windows:
+    needs: publish
+    runs-on: windows-2025
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13.16'
+          architecture: x64
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: windows-x64-preview
+          path: runtime/downloaded-release
+      - name: Download the published EXE and verify its released identity
+        shell: python
+        run: |
+          import hashlib,json,os,pathlib,urllib.request
+          folder=pathlib.Path('runtime/downloaded-release')
+          base='https://github.com/'+os.environ['GITHUB_REPOSITORY']+'/releases/download/'+os.environ['RELEASE_TAG']+'/'
+          for name in ('codex-reset-installer-windows-x64-preview.exe','WINDOWS-SHA256SUMS','WINDOWS-BUILD-CHECKS.json','RELEASE-MANIFEST.json'):
+              with urllib.request.urlopen(base+name,timeout=60) as source:
+                  (folder/name).write_bytes(source.read())
+          report=json.loads((folder/'WINDOWS-BUILD-CHECKS.json').read_text())
+          manifest=json.loads((folder/'RELEASE-MANIFEST.json').read_text())
+          exe=folder/'codex-reset-installer-windows-x64-preview.exe'
+          checksum=hashlib.sha256(exe.read_bytes()).hexdigest()
+          assert report['source_commit']==manifest['source_commit']==os.environ['GITHUB_SHA']
+          assert report['archive_sha256']==manifest['platforms']['windows-x64']['sha256']==checksum
+          (folder/'PUBLISHED-IDENTITY.json').write_text(json.dumps({'source_commit':os.environ['GITHUB_SHA'],'tag':os.environ['RELEASE_TAG'],'sha256':checksum}))
+      - name: Run downloaded final EXE through the same actual artifact acceptance
+        run: python scripts/verify_windows_release.py runtime/downloaded-release "$env:GITHUB_SHA"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: published-windows-acceptance
+          path: |
+            runtime/downloaded-release/PUBLISHED-IDENTITY.json
+            runtime/downloaded-release/WINDOWS-BUILD-CHECKS.json
+            runtime/downloaded-release/windows-evidence/
+          if-no-files-found: error
+          retention-days: 7

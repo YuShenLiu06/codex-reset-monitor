@@ -80,7 +80,7 @@ def inspect_windows_exe(executable,archive,report):
         raise ValueError('Single EXE identity mismatch')
     required={'embedded-files-match-scanned-package','empty-working-directory','Chinese-and-space-paths',
         'clean-PATH-no-Python-gh-dotnet','first-and-repeat-launch','cache-corruption-repair','prepare-cancel-cleanup-retry',
-        'stale-preparation-cleanup','previous-version-cache-retained','config-and-progress-retained','concurrent-launch',
+        'stale-preparation-cleanup','old-ZIP-to-EXE-progress-resume','previous-version-cache-retained','config-and-progress-retained','concurrent-launch',
         'embedded-manifest-corruption-rejected','reparse-point-rejected','bundled-gh'}
     if set(report.get('single_exe_checks',[]))!=required or not report.get('comparison'):
         raise ValueError('Single EXE acceptance evidence missing')

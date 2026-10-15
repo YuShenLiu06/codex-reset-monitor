@@ -144,7 +144,7 @@ LRESULT CALLBACK procedure(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
         else DestroyWindow(hwnd);return 0;
     case PROGRESS:SendMessageW(bar,PBM_SETPOS,wp,0);return 0;
     case READY:{
-        work.join();report("ready");
+        work.join();if(cancelled){report("cancelled");DestroyWindow(hwnd);return 0;}report("ready");
         if(testAction==L"prepare"){DestroyWindow(hwnd);return 0;}
         auto exe=cache/L"CodexResetInstaller.exe";std::wstring command=quote(exe.wstring())+childArgs;STARTUPINFOW startup{};startup.cb=sizeof(startup);PROCESS_INFORMATION process{};
         if(!CreateProcessW(exe.c_str(),command.data(),nullptr,nullptr,FALSE,0,nullptr,cache.c_str(),&startup,&process)){failure="UI_START_FAILED";PostMessageW(hwnd,FAILED,0,0);return 0;}

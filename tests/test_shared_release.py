@@ -77,7 +77,7 @@ class SharedReleaseTest(unittest.TestCase):
             report.update(asset=WINDOWS_EXE,manifest_sha256=inspect_exe(windows/WINDOWS_EXE)['manifest_sha256'],comparison={'measured':True},
                 single_exe_checks=['embedded-files-match-scanned-package','empty-working-directory','Chinese-and-space-paths',
                     'clean-PATH-no-Python-gh-dotnet','first-and-repeat-launch','cache-corruption-repair','prepare-cancel-cleanup-retry',
-                    'stale-preparation-cleanup','previous-version-cache-retained','config-and-progress-retained','concurrent-launch',
+                    'stale-preparation-cleanup','old-ZIP-to-EXE-progress-resume','previous-version-cache-retained','config-and-progress-retained','concurrent-launch',
                     'embedded-manifest-corruption-rejected','reparse-point-rejected','bundled-gh'])
             (windows/'WINDOWS-BUILD-CHECKS.json').write_text(json.dumps(report))
             # Evidence screenshots stay in the workflow artifact, outside public assets.

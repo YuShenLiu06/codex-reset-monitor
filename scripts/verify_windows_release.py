@@ -66,9 +66,11 @@ def verify(directory,commit):
     evidence=directory/'windows-evidence';evidence.mkdir(exist_ok=True)
     pe(executable,2);raw=executable.read_bytes();assert b'level="asInvoker"' in raw
     payload=inspect_exe(executable)
-    package=ROOT/'runtime/windows-build'/'Codex 提醒设置 Windows 测试版'
     public=json.loads((ROOT/'macos/public-app.json').read_text())
     inspect_windows(directory/WINDOWS_ZIP,commit,public,digest(ROOT/'assets/logo-v1.png'))
+    inspection=tempfile.TemporaryDirectory(prefix='inspected-payload-')
+    with zipfile.ZipFile(directory/WINDOWS_ZIP) as source:source.extractall(inspection.name)
+    package=next(Path(inspection.name).iterdir())
     # Compare every embedded/decompressed file with the scanned package, not just a marker.
     with executable.open('rb') as source:
         for name,size,packed,offset,sha in payload['files']:
@@ -150,6 +152,10 @@ def verify(directory,commit):
         unzip=time.perf_counter()-started;old_app=next((root/'旧版 空格').iterdir())/'CodexResetInstaller.exe'
         old_local=root/'旧 用户';old_local.mkdir();environment['LOCALAPPDATA']=str(old_local)
         old=[ui(old_app,'startup',evidence/f'baseline-{i}',empty,environment)['interactive_seconds'] for i in range(3)]
+        ui(old_app,'cancel',evidence/'upgrade-old-cancel',empty,environment)
+        upgraded=ui(app,'resume',evidence/'upgrade-new-resume',empty,environment)
+        assert upgraded['sawResume'] and upgraded['finished']
+        assert json.loads((old_local/'Codex Reset Installer/state.local.json').read_text())['pending'] is None
         comparison={'environment':{'os':platform.platform(),'cpu':platform.processor(),'logical_cpus':os.cpu_count(),
             'runner':os.environ.get('ImageOS'),'image_version':os.environ.get('ImageVersion')},
             'method':'same Windows runner; isolated LOCALAPPDATA; System32-only PATH; launch to welcome.png after loaded interactive WPF welcome; 10ms polling. First run has empty app cache, not a cold OS disk cache. Download time excluded.',
@@ -162,11 +168,12 @@ def verify(directory,commit):
         'platform':'real Windows x64 standard runner','tests':results,'comparison':comparison,
         'single_exe_checks':['embedded-files-match-scanned-package','empty-working-directory','Chinese-and-space-paths',
             'clean-PATH-no-Python-gh-dotnet','first-and-repeat-launch','cache-corruption-repair','prepare-cancel-cleanup-retry',
-            'stale-preparation-cleanup','previous-version-cache-retained','config-and-progress-retained','concurrent-launch',
+            'stale-preparation-cleanup','old-ZIP-to-EXE-progress-resume','previous-version-cache-retained','config-and-progress-retained','concurrent-launch',
             'embedded-manifest-corruption-rejected','reparse-point-rejected','bundled-gh'],
         'limits':['synthetic service boundaries; not live account E2E','unsigned; SmartScreen and antivirus false positives not evaluated',
             'public GitHub App unchanged; cross-account installation not tested','runner timings do not predict user computer speed']}
     (directory/'WINDOWS-BUILD-CHECKS.json').write_text(json.dumps(checks,indent=2),encoding='utf-8')
+    inspection.cleanup()
     print(json.dumps(comparison,indent=2));print('Final EXE and affected cache/UI-worker paths passed')
 
 
