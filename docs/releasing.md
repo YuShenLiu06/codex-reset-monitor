@@ -2,7 +2,7 @@
 
 [返回首页](../README.md) · [macOS 构建设计](macos-installer-plan.md)
 
-维护者可在 **Actions → macOS preview release → Run workflow** 选择 `main`，输入新的版本号，例如 `v0.1.3-preview.1`。也可向 main 已包含的提交推送同格式 tag。每个版本只发布一次，不覆盖旧资产。
+维护者先为新版本填写 `docs/release-notes/版本号.md`，只写普通用户能理解的实际变化、使用步骤和当前限制。随后在 **Actions → macOS preview release → Run workflow** 选择 `main`，输入该版本号，例如 `v0.1.3-preview.3`。也可向 main 已包含的提交推送同格式 tag。缺少本版说明会在构建前停止；每个版本只发布一次，不覆盖旧资产。技术记录自动放到发布说明末尾的折叠详情。
 
 ## 自动完成哪些步骤
 

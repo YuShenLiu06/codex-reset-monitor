@@ -29,6 +29,7 @@ jobs:
       - name: Validate release source and version
         run: |
           python3 -c 'import os,re; assert re.fullmatch(r"v\d+\.\d+\.\d+-preview\.\d+",os.environ["RELEASE_TAG"]), "Preview tag required"'
+          test -s "docs/release-notes/$RELEASE_TAG.md"
           if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && "$GITHUB_REF" != refs/heads/main ]]; then
             echo 'Dispatch releases from main only'; exit 1
           fi
