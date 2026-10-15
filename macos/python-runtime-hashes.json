@@ -1,4 +1,13 @@
 {
+  "additional_provenance": {
+    "_internal/python3.13/lib-dynload/pyexpat.cpython-313-darwin.so": {
+      "build_evidence": "https://github.com/YuShenLiu06/codex-reset-monitor/actions/runs/38717248066",
+      "official_archive_sha256": "d1ae6449f4ce55578440560bb07e4ba14e59ab64627517db533ac3345b6aa3aa",
+      "official_input": "https://github.com/actions/python-versions/releases/download/3.13.16-36805956071/python-3.13.16-darwin-arm64.tar.gz",
+      "review": "All 10 arm64 code/data sections, dependency identities and UUID match the fixed official input; only loader/signature transformation differs. Exact packaged hash remains mandatory.",
+      "upstream_binary_sha256": "e63db04d2a13d9216497c8e4dd280b81aeae6cb42a7563a527143ecd1941b6ff"
+    }
+  },
   "files": {
     "_internal/Python.framework/Versions/3.13/Python": "76cf2dc505c72c45637bb60d2f54af52e2a268a7675e920ffe7e920aaaf7e396",
     "_internal/python3.13/lib-dynload/_bisect.cpython-313-darwin.so": "e6a676a579590db0374062ef4b7a05cf4dc70f7885c82ef76fe9c4cc60b1699d",
@@ -38,6 +47,7 @@
     "_internal/python3.13/lib-dynload/fcntl.cpython-313-darwin.so": "7cedf5cd476cb16df4bca23c455add85faea907dbc8a7c2a116cc3660a4bd9fd",
     "_internal/python3.13/lib-dynload/grp.cpython-313-darwin.so": "97b0e82f7af8a68633e3dab6b5d44f45b8c64f6a3b384fb111c0f66f2d2fa459",
     "_internal/python3.13/lib-dynload/math.cpython-313-darwin.so": "6417655e60b74dddee1a44ace23cff73b3c98c928574e435970f53b7a5b37d11",
+    "_internal/python3.13/lib-dynload/pyexpat.cpython-313-darwin.so": "c163a8f753a0a4ee106fba09f8264a540fa87475a9fcffdb891d443f24f25e8f",
     "_internal/python3.13/lib-dynload/resource.cpython-313-darwin.so": "12df3bb38b3e9a5c23fd0b6a61de276578f7fbfff9ded12419ee2113eb764421",
     "_internal/python3.13/lib-dynload/select.cpython-313-darwin.so": "3ea4c6ae24d9ed41746e376bf44fd8420c3f5948a92eec96a1aabec5a6a53aef",
     "_internal/python3.13/lib-dynload/termios.cpython-313-darwin.so": "bfe638b472ab9bad0cd8721f2489e96c8edc14e5ec39d4800eb2e25729392efa",
