@@ -5,7 +5,8 @@ from pathlib import Path
 import ssl
 import time
 import urllib.error
-from unittest.mock import patch
+import urllib.request
+import webbrowser
 
 
 def run(mode,root):
@@ -38,7 +39,13 @@ def run(mode,root):
             return Response(b'{"error":"authorization_pending"}')
     gui=GUI()
     # All HTTP and browser boundaries are replaced before cli.main executes.
-    with patch('urllib.request.build_opener',return_value=Opener()),patch('webbrowser.open',side_effect=AssertionError('Offline browser forbidden')):
+    previous_opener=urllib.request.build_opener;previous_browser=webbrowser.open
+    def browser_forbidden(*args,**kwargs):raise AssertionError('Offline browser forbidden')
+    urllib.request.build_opener=lambda *args,**kwargs:Opener()
+    webbrowser.open=browser_forbidden
+    try:
         code=cli.main(['--progress',str(root/'state.local.json'),'--public-config',str(root/'app.local.json')],ui=gui)
+    finally:
+        urllib.request.build_opener=previous_opener;webbrowser.open=previous_browser
     gui.send({'type':'done','code':code})
     return code
