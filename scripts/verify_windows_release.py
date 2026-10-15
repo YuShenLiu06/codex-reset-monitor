@@ -43,12 +43,17 @@ def wait_file(path,process,timeout=90):
 def ui(executable,mode,output,root,environment):
     began=time.perf_counter()
     process=subprocess.Popen([str(executable),'--offline-ui-test',mode,'--test-output',str(output)],cwd=root,env=environment)
+    visible=None
+    if executable.name!='CodexResetInstaller.exe':
+        wait_file(output/'preparing.png',process)
+        visible=round(time.perf_counter()-began,4)
     wait_file(output/'welcome.png',process)
     interactive=time.perf_counter()-began
     code=process.wait(timeout=65)
     report=json.loads((output/'RESULT.json').read_text(encoding='utf-8'))
     assert code==0 and report.get('passed'),(mode,code,report)
     report['interactive_seconds']=round(interactive,4)
+    if visible is not None:report['preparation_visible_seconds']=visible
     return report
 
 
@@ -198,8 +203,8 @@ def verify(directory,commit):
         assert json.loads((old_local/'Codex Reset Installer/state.local.json').read_text())['pending'] is None
         comparison={'environment':{'os':platform.platform(),'cpu':platform.processor(),'logical_cpus':os.cpu_count(),
             'runner':os.environ.get('ImageOS'),'image_version':os.environ.get('ImageVersion')},
-            'method':'same Windows runner; isolated LOCALAPPDATA; System32-only PATH; launch to welcome.png after loaded interactive WPF welcome; 10ms polling. First run has empty app cache, not a cold OS disk cache. Download time excluded.',
-            'single_exe':{'bytes':executable.stat().st_size,'first_visible_seconds':cold['visible_ms']/1000,
+            'method':'same Windows runner; isolated LOCALAPPDATA; System32-only PATH; launch to welcome.png after loaded interactive WPF welcome; 10ms polling; prepare-window timing includes process launch and capture after visible paint. First run has empty app cache, not a cold OS disk cache. Download time excluded.',
+            'single_exe':{'bytes':executable.stat().st_size,'first_visible_seconds':first['preparation_visible_seconds'],
                 'first_interactive_seconds':first['interactive_seconds'],'repeat_interactive_seconds':warm},
             'baseline_zip':{'tag':'v0.1.4-preview.1','sha256':BASELINE_SHA,'bytes':old_zip.stat().st_size,
                 'unzip_seconds':round(unzip,4),'launch_interactive_seconds':old,
