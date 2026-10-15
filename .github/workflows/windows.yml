@@ -12,6 +12,7 @@ on:
       - 'scripts/*windows*'
       - 'tests/test_windows.py'
       - '.github/workflows/windows.yml'
+      - '.github/workflows/mac-device-test.yml'
       - 'scripts/release_assets.py'
       - 'tests/test_shared_release.py'
       - '.gitattributes'
