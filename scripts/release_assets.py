@@ -10,6 +10,7 @@ from scripts.verify_macos_release import CREDENTIAL, FORBIDDEN, inspect_archive,
 MAC_ZIP='codex-reset-installer-macos-arm64-preview.zip'
 WINDOWS_ZIP='codex-reset-installer-windows-x64-preview.zip'
 WINDOWS_EXE='codex-reset-installer-windows-x64-preview.exe'
+WINDOWS_EVIDENCE='WINDOWS-UI-EVIDENCE.zip'
 WINDOWS_ROOT='Codex 提醒设置 Windows 测试版'
 MAC_CHECKS={'archive-allowlist-and-credential-scan','sha256','ditto-unpack','deep-signature-verification',
             'arm64-executable-modes','bundled-gh-version','network-denied-frozen-worker-initialization-cancel',
@@ -110,6 +111,14 @@ def assemble(mac,windows,output,sha,public,logo_sha,run_url):
             (mac/'SHA256SUMS','MACOS-SHA256SUMS'),(windows/'WINDOWS-SHA256SUMS','WINDOWS-SHA256SUMS'),
             (mac/'BUILD-CHECKS.json','BUILD-CHECKS.json'),(windows/'WINDOWS-BUILD-CHECKS.json','WINDOWS-BUILD-CHECKS.json')]
     for source,name in copies:shutil.copyfile(source,output/name)
+    # Only known synthetic UI captures: durable evidence, never personal account screenshots.
+    screenshots=('startup/preparing.png','startup/welcome.png','full/device.png','full/final.png','cancel/final.png','resume/final.png')
+    with zipfile.ZipFile(output/WINDOWS_EVIDENCE,'w',compression=zipfile.ZIP_DEFLATED) as bundle:
+        for name in screenshots:
+            path=windows/'windows-evidence'/name;data=path.read_bytes()
+            if not data.startswith(b'\x89PNG\r\n\x1a\n') or len(data)>5*1024*1024:
+                raise ValueError('Actual offline PNG capture required: '+name)
+            bundle.writestr(name,data)
     (output/'SHA256SUMS').write_text(mac_sha+'  '+MAC_ZIP+'\n'+windows_sha+'  '+WINDOWS_EXE+'\n')
     manifest={'source_commit':sha,'run_url':run_url,'public_app':public,'logo_sha256':logo_sha,
               'platforms':{'macos-arm64':{'archive':MAC_ZIP,'sha256':mac_sha,'report':'BUILD-CHECKS.json'},

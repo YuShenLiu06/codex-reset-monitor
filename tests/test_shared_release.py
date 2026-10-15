@@ -80,10 +80,12 @@ class SharedReleaseTest(unittest.TestCase):
                     'stale-preparation-cleanup','old-ZIP-to-EXE-progress-resume','previous-version-cache-retained','config-and-progress-retained','concurrent-launch',
                     'embedded-manifest-corruption-rejected','reparse-point-rejected','bundled-gh'])
             (windows/'WINDOWS-BUILD-CHECKS.json').write_text(json.dumps(report))
-            # Evidence screenshots stay in the workflow artifact, outside public assets.
+            for name in ('startup/preparing.png','startup/welcome.png','full/device.png','full/final.png','cancel/final.png','resume/final.png'):
+                image=windows/'windows-evidence'/name;image.parent.mkdir(parents=True,exist_ok=True);image.write_bytes(b'\x89PNG\r\n\x1a\nsynthetic-unit-fixture')
+            # Unselected files stay outside public assets.
             (windows/'not-for-release.txt').write_text('synthetic evidence')
             output=root/'release';assets=assemble(mac,windows,output,SHA,PUBLIC,LOGO_SHA,'https://example.test/run')
-            self.assertEqual(len(assets),8)
+            self.assertEqual(len(assets),9)
             self.assertFalse((output/'not-for-release.txt').exists())
             self.assertEqual(len((output/'SHA256SUMS').read_text().splitlines()),2)
             manifest=json.loads((output/'RELEASE-MANIFEST.json').read_text())

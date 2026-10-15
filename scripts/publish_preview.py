@@ -53,7 +53,7 @@ def main(mac_directory,windows_directory):
 
 本次 Windows 标准 runner 实测（不代表用户电脑速度）：单 EXE {current['bytes']/1_000_000:.2f} MB，旧 ZIP {previous['bytes']/1_000_000:.2f} MB。首次准备窗口 {current['first_visible_seconds']:.2f} 秒、首次可交互设置窗口 {current['first_interactive_seconds']:.2f} 秒，再次 {repeated} 秒。旧 ZIP 解压加首次可交互共 {previous['first_unzip_plus_launch_seconds']:.2f} 秒；旧版单独启动数据与环境见报告。均不含下载，首启为空应用缓存，未清空系统磁盘缓存。
 
-下方 SHA256SUMS 包含 Mac ZIP 与 Windows EXE；RELEASE-MANIFEST.json 记录两平台共同源码与资产哈希。BUILD-CHECKS.json / WINDOWS-BUILD-CHECKS.json 保留各平台实际运行证据；Windows 的完整、取消和恢复使用离线模拟服务，不代替真实账号或通知验收。
+下方 SHA256SUMS 包含 Mac ZIP 与 Windows EXE；RELEASE-MANIFEST.json 记录两平台共同源码与资产哈希。BUILD-CHECKS.json / WINDOWS-BUILD-CHECKS.json 保留各平台实际运行证据；WINDOWS-UI-EVIDENCE.zip 保存真实窗口的离线截图。Windows 的完整、取消和恢复使用离线模拟服务，不代替真实账号或通知验收。
 
 </details>
 '''
