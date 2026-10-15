@@ -47,9 +47,23 @@ jobs:
             --public-config macos/public-app.json
       - name: Verify actual artifact and fixed public HTTPS without OAuth
         run: |
+          python3 - <<'PY'
+          import hashlib,json,pathlib,pyexpat,shutil,zipfile
+          root=pathlib.Path('runtime/mac-device-test')
+          upstream=pathlib.Path(pyexpat.__file__)
+          source_sha=hashlib.sha256(upstream.read_bytes()).hexdigest()
+          assert source_sha=='e63db04d2a13d9216497c8e4dd280b81aeae6cb42a7563a527143ecd1941b6ff'
+          shutil.copy2(upstream,root/'UPSTREAM-PYEXPAT.so')
+          with zipfile.ZipFile(root/'codex-reset-installer-macos-arm64-preview.zip') as archive:
+              name=next(n for n in archive.namelist() if n.endswith('/pyexpat.cpython-313-darwin.so'))
+              payload=archive.read(name)
+          (root/'PACKAGED-PYEXPAT.so').write_bytes(payload)
+          (root/'NATIVE-PROVENANCE.json').write_text(json.dumps({'upstream_sha256':source_sha,'packaged_sha256':hashlib.sha256(payload).hexdigest(),'input':'official setup-python 3.13.16; matches reviewed official Python package'},indent=2))
+          PY
           python3 scripts/verify_macos_release.py runtime/mac-device-test "$GITHUB_SHA" --public-config macos/public-app.json
           "runtime/mac-device-test/Codex 提醒设置.app/Contents/Resources/worker/reset-worker" --tls-check > runtime/mac-device-test/PUBLIC-TLS-CHECK.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
         with:
           name: unpublished-mac-device-test
           path: |
@@ -57,6 +71,9 @@ jobs:
             runtime/mac-device-test/SHA256SUMS
             runtime/mac-device-test/BUILD-CHECKS.json
             runtime/mac-device-test/PUBLIC-TLS-CHECK.json
+            runtime/mac-device-test/NATIVE-PROVENANCE.json
+            runtime/mac-device-test/UPSTREAM-PYEXPAT.so
+            runtime/mac-device-test/PACKAGED-PYEXPAT.so
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
