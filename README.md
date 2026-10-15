@@ -22,7 +22,7 @@
 
 ## 怎么下载／开始
 
-**[下载 Mac Apple 芯片测试版（ZIP）](https://github.com/YuShenLiu06/codex-reset-monitor/releases/download/v0.1.3-preview.2/codex-reset-installer-macos-arm64-preview.zip)**。版本说明见[发布页](https://github.com/YuShenLiu06/codex-reset-monitor/releases/tag/v0.1.3-preview.2)。GitHub 的「Download ZIP」是源码，不是安装包。
+**[下载 Mac Apple 芯片测试版（ZIP）](https://github.com/YuShenLiu06/codex-reset-monitor/releases/download/v0.1.3-preview.3/codex-reset-installer-macos-arm64-preview.zip)**。版本说明见[发布页](https://github.com/YuShenLiu06/codex-reset-monitor/releases/tag/v0.1.3-preview.3)。GitHub 的「Download ZIP」是源码，不是安装包。
 
 不用额外安装工具，已复用现有连接应用，首次无需再次创建。目前供该应用所有者试用，其他账号能否安装尚未核实。完整安装流程仍在验证；系统可能阻止打开，遇到拦截请暂停。Intel Mac、Windows 暂无安装包。
 
