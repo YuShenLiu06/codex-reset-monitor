@@ -12,7 +12,7 @@
   "reset_events": {
     "history_digest": "eff8000f95f929d7ed594753c4c7833e16a79e85",
     "initialized_at": "2026-10-15T07:23:18.820885Z",
-    "last_checked_at": "2026-10-18T23:00:09.750000Z",
+    "last_checked_at": "2026-10-19T01:10:16.377000Z",
     "records": {
       "reset:1196d945f711a71d8c33526fc964cd57eab63c80": {
         "first_seen_at": "2026-10-15T07:23:18.820885Z",
