@@ -42,10 +42,12 @@
         "attempted_at": "2026-10-20T15:02:06.835477Z",
         "first_seen_at": "2026-10-20T15:02:06.835477Z",
         "precision": "approximate",
+        "receipt": "om_x100b624c698de4a0cfc86ae73e64970",
         "reset_at": "2026-10-20T06:34:03.741000Z",
+        "sent_at": "2026-10-20T15:02:06.835477Z",
         "source": "https://x.com/thsottiaux/status/2112432076767289678",
         "source_key": "tibo-reset-2112432076767289678",
-        "status": "pending"
+        "status": "sent"
       },
       "reset:9193121d38c6c0a38c9f5861de3ef399b0cbb998": {
         "attempted_at": "2026-10-18T04:26:15.300655Z",
