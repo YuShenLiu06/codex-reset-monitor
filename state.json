@@ -39,12 +39,13 @@
         "status": "baseline"
       },
       "reset:5897a79e19390aae4ec4c95ad5146482fb581cd4": {
+        "attempted_at": "2026-10-20T15:02:06.835477Z",
         "first_seen_at": "2026-10-20T15:02:06.835477Z",
         "precision": "approximate",
         "reset_at": "2026-10-20T06:34:03.741000Z",
         "source": "https://x.com/thsottiaux/status/2112432076767289678",
         "source_key": "tibo-reset-2112432076767289678",
-        "status": "queued"
+        "status": "pending"
       },
       "reset:9193121d38c6c0a38c9f5861de3ef399b0cbb998": {
         "attempted_at": "2026-10-18T04:26:15.300655Z",
