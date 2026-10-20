@@ -10,9 +10,9 @@
   "alerts": {},
   "last_sent_at": null,
   "reset_events": {
-    "history_digest": "eff8000f95f929d7ed594753c4c7833e16a79e85",
+    "history_digest": "1e629189a48b4077c1b400500a296bfc406d61a7",
     "initialized_at": "2026-10-15T07:23:18.820885Z",
-    "last_checked_at": "2026-10-20T04:40:00.978000Z",
+    "last_checked_at": "2026-10-20T15:00:06.601000Z",
     "records": {
       "reset:1196d945f711a71d8c33526fc964cd57eab63c80": {
         "first_seen_at": "2026-10-15T07:23:18.820885Z",
@@ -38,6 +38,14 @@
         "source_key": "tibo-reset-2107676072871600470",
         "status": "baseline"
       },
+      "reset:5897a79e19390aae4ec4c95ad5146482fb581cd4": {
+        "first_seen_at": "2026-10-20T15:02:06.835477Z",
+        "precision": "approximate",
+        "reset_at": "2026-10-20T06:34:03.741000Z",
+        "source": "https://x.com/thsottiaux/status/2112432076767289678",
+        "source_key": "tibo-reset-2112432076767289678",
+        "status": "queued"
+      },
       "reset:9193121d38c6c0a38c9f5861de3ef399b0cbb998": {
         "attempted_at": "2026-10-18T04:26:15.300655Z",
         "first_seen_at": "2026-10-18T04:26:15.300655Z",
@@ -59,7 +67,7 @@
       }
     },
     "version": 1,
-    "watermark": "2026-10-17T21:12:21Z"
+    "watermark": "2026-10-20T06:34:03.741000Z"
   },
   "version": 1
 }
