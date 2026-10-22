@@ -61,10 +61,12 @@
         "attempted_at": "2026-10-22T19:13:25.058071Z",
         "first_seen_at": "2026-10-22T19:13:25.058071Z",
         "precision": "approximate",
+        "receipt": "om_x100b62924b7a40a4cf62957b1ba16fb",
         "reset_at": "2026-10-22T17:10:09.430000Z",
+        "sent_at": "2026-10-22T19:13:25.058071Z",
         "source": "https://x.com/thsottiaux/status/2113162277688070445",
         "source_key": "usage-reset-5d099b8b-94e1-4cce-82d8-dd051198ab69",
-        "status": "pending"
+        "status": "sent"
       },
       "reset:9193121d38c6c0a38c9f5861de3ef399b0cbb998": {
         "attempted_at": "2026-10-18T04:26:15.300655Z",
