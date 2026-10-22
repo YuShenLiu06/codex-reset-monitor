@@ -11,10 +11,12 @@
     "forecast:abace15022eff57e43735414cb2d0ca68de5bc1c": {
       "attempted_at": "2026-10-22T10:08:07.637900Z",
       "kind": "forecast24h",
-      "status": "pending"
+      "receipt": "om_x100b62aa467678bcc0a4bfff26cb6a3",
+      "sent_at": "2026-10-22T10:08:07.637900Z",
+      "status": "sent"
     }
   },
-  "last_sent_at": null,
+  "last_sent_at": "2026-10-22T10:08:07.637900Z",
   "reset_events": {
     "history_digest": "1e629189a48b4077c1b400500a296bfc406d61a7",
     "initialized_at": "2026-10-15T07:23:18.820885Z",
