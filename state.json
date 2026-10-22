@@ -7,7 +7,13 @@
       "status": "sent"
     }
   },
-  "alerts": {},
+  "alerts": {
+    "forecast:abace15022eff57e43735414cb2d0ca68de5bc1c": {
+      "attempted_at": "2026-10-22T10:08:07.637900Z",
+      "kind": "forecast24h",
+      "status": "pending"
+    }
+  },
   "last_sent_at": null,
   "reset_events": {
     "history_digest": "1e629189a48b4077c1b400500a296bfc406d61a7",
