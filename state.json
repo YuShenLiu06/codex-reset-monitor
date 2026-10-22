@@ -58,12 +58,13 @@
         "status": "sent"
       },
       "reset:5db016883e95b92e8e64fb2a66aa2739c36ac9aa": {
+        "attempted_at": "2026-10-22T19:13:25.058071Z",
         "first_seen_at": "2026-10-22T19:13:25.058071Z",
         "precision": "approximate",
         "reset_at": "2026-10-22T17:10:09.430000Z",
         "source": "https://x.com/thsottiaux/status/2113162277688070445",
         "source_key": "usage-reset-5d099b8b-94e1-4cce-82d8-dd051198ab69",
-        "status": "queued"
+        "status": "pending"
       },
       "reset:9193121d38c6c0a38c9f5861de3ef399b0cbb998": {
         "attempted_at": "2026-10-18T04:26:15.300655Z",
