@@ -18,10 +18,12 @@
     "forecast:ed515ffce3420896163a04c59050678386def53d": {
       "attempted_at": "2026-10-23T13:22:24.947339Z",
       "kind": "forecast24h",
-      "status": "pending"
+      "receipt": "om_x100b6281b7a41ca0dc07920831fcef0",
+      "sent_at": "2026-10-23T13:22:24.947339Z",
+      "status": "sent"
     }
   },
-  "last_sent_at": "2026-10-22T10:08:07.637900Z",
+  "last_sent_at": "2026-10-23T13:22:24.947339Z",
   "reset_events": {
     "history_digest": "93e907c92fc4b94e01d4687d5804b5dd3608c2cb",
     "initialized_at": "2026-10-15T07:23:18.820885Z",
