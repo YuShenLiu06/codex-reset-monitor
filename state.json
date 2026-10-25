@@ -116,10 +116,12 @@
         "attempted_at": "2026-10-25T16:11:16.713256Z",
         "first_seen_at": "2026-10-25T16:11:16.713256Z",
         "precision": "approximate",
+        "receipt": "om_x100b62d6ec50c0a8cf53618ae34748c",
         "reset_at": "2026-10-25T06:11:35.968000Z",
+        "sent_at": "2026-10-25T16:11:16.713256Z",
         "source": "https://x.com/thsottiaux/status/2114200152701575656",
         "source_key": "tibo-reset-2114237083652882932",
-        "status": "pending"
+        "status": "sent"
       }
     },
     "version": 1,
