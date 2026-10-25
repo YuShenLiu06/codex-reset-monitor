@@ -21,6 +21,11 @@
       "receipt": "om_x100b6281b7a41ca0dc07920831fcef0",
       "sent_at": "2026-10-23T13:22:24.947339Z",
       "status": "sent"
+    },
+    "forecast:f536397a9f388f4ca541b39094f8479f5615540b": {
+      "attempted_at": "2026-10-25T06:03:58.428203Z",
+      "kind": "forecast24h",
+      "status": "pending"
     }
   },
   "last_sent_at": "2026-10-23T13:22:24.947339Z",
