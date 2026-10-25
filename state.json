@@ -113,12 +113,13 @@
         "status": "baseline"
       },
       "reset:ccde69537aa124c5ccf1042be58be49e66dde929": {
+        "attempted_at": "2026-10-25T16:11:16.713256Z",
         "first_seen_at": "2026-10-25T16:11:16.713256Z",
         "precision": "approximate",
         "reset_at": "2026-10-25T06:11:35.968000Z",
         "source": "https://x.com/thsottiaux/status/2114200152701575656",
         "source_key": "tibo-reset-2114237083652882932",
-        "status": "queued"
+        "status": "pending"
       }
     },
     "version": 1,
