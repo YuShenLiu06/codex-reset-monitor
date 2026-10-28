@@ -8,6 +8,11 @@
     }
   },
   "alerts": {
+    "forecast:a499a0f5760e3c4bd13d8047f1c4c8af1e1507ed": {
+      "attempted_at": "2026-10-28T05:34:55.849765Z",
+      "kind": "forecast24h",
+      "status": "pending"
+    },
     "forecast:abace15022eff57e43735414cb2d0ca68de5bc1c": {
       "attempted_at": "2026-10-22T10:08:07.637900Z",
       "kind": "forecast24h",
