@@ -41,7 +41,7 @@
   "reset_events": {
     "history_digest": "f2cbb228b7e3cd57b72492aa116ebec3b6afe3eb",
     "initialized_at": "2026-10-15T07:23:18.820885Z",
-    "last_checked_at": "2026-10-30T20:40:29.889000Z",
+    "last_checked_at": "2026-10-31T00:40:21.965000Z",
     "records": {
       "reset:1196d945f711a71d8c33526fc964cd57eab63c80": {
         "first_seen_at": "2026-10-15T07:23:18.820885Z",
