@@ -22,6 +22,11 @@
       "sent_at": "2026-10-22T10:08:07.637900Z",
       "status": "sent"
     },
+    "forecast:e447f30f32fd93f6128533a58faa10cbf65d94b1": {
+      "attempted_at": "2026-10-31T13:37:06.811416Z",
+      "kind": "forecast24h",
+      "status": "pending"
+    },
     "forecast:ed515ffce3420896163a04c59050678386def53d": {
       "attempted_at": "2026-10-23T13:22:24.947339Z",
       "kind": "forecast24h",
