@@ -25,7 +25,9 @@
     "forecast:e447f30f32fd93f6128533a58faa10cbf65d94b1": {
       "attempted_at": "2026-10-31T13:37:06.811416Z",
       "kind": "forecast24h",
-      "status": "pending"
+      "receipt": "om_x100b616abea2f4a0de96e4d5b8f7f3e",
+      "sent_at": "2026-10-31T13:37:06.811416Z",
+      "status": "sent"
     },
     "forecast:ed515ffce3420896163a04c59050678386def53d": {
       "attempted_at": "2026-10-23T13:22:24.947339Z",
@@ -42,7 +44,7 @@
       "status": "sent"
     }
   },
-  "last_sent_at": "2026-10-28T05:34:55.849765Z",
+  "last_sent_at": "2026-10-31T13:37:06.811416Z",
   "reset_events": {
     "history_digest": "f2cbb228b7e3cd57b72492aa116ebec3b6afe3eb",
     "initialized_at": "2026-10-15T07:23:18.820885Z",
